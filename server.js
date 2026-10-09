@@ -201,7 +201,7 @@ function checkVotes(room, force = false) {
   u.status = (retake > 0 && retake >= wrong) ? 'retake' : 'rejected';
   const who = getPlayer(room, u.pid);
   toast(room, u.status === 'retake'
-    ? `${who ? who.name : 'Player'} needs a clearer photo — retake!`
+    ? `${who ? who.name : 'Player'} needs a clearer photo. Retake!`
     : `${who ? who.name : 'That'}'s evidence was not approved. The hunt continues!`);
   room.reviewing = null;
   nextReview(room);
@@ -298,7 +298,7 @@ const handlers = {
     if (room.players.length >= room.seats) return send(ws, { t: 'error', text: 'That game room is full.' });
     const name = clean(m.name, 16) || 'Detective';
     if (room.players.some(p => p.name.toLowerCase() === name.toLowerCase()))
-      return send(ws, { t: 'error', text: 'Someone already uses that name — pick another.' });
+      return send(ws, { t: 'error', text: 'Someone already uses that name. Pick another.' });
     const p = { id: uid(), name, avatar: clean(m.avatar, 4) || '🦊', score: 0, won: 0, connected: true };
     room.players.push(p);
     attach(ws, room, p);
@@ -344,7 +344,7 @@ const handlers = {
 
   skip(ws, m, room, me) {
     if (room.phase !== 'hunt' || room.reviewing) return;
-    if (room.uploads.length) return send(ws, { t: 'error', text: 'Evidence is already in — you can\'t change this case now.' });
+    if (room.uploads.length) return send(ws, { t: 'error', text: 'Evidence is already in. You can\'t change this case now.' });
     if (room.skipsLeft <= 0) return send(ws, { t: 'error', text: 'No new cases left this round.' });
     room.skipsLeft -= 1;
     if (room.settings.mode === 'type') {
@@ -362,7 +362,7 @@ const handlers = {
 
   upload(ws, m, room, me) {
     if (room.phase !== 'hunt') return send(ws, { t: 'error', text: 'The round is over.' });
-    if (!canUpload(room, me.id)) return send(ws, { t: 'error', text: 'Only tied players hunt in the tiebreaker — you get to judge!' });
+    if (!canUpload(room, me.id)) return send(ws, { t: 'error', text: 'Only tied players hunt in the tiebreaker. You get to judge!' });
     if (room.settings.timer && room.endsAt && Date.now() > room.endsAt) return send(ws, { t: 'error', text: 'Time is up!' });
     if (room.uploads.some(u => u.pid === me.id && u.status === 'pending'))
       return send(ws, { t: 'error', text: 'Your evidence is already waiting to be checked.' });

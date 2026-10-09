@@ -53,7 +53,7 @@ const clock = ms => { const s = ms / 1000; return s < 60 ? `${s.toFixed(1)}s` : 
 
 function send(msg) {
   if (S.ws && S.ws.readyState === 1) { S.ws.send(JSON.stringify(msg)); return true; }
-  toast('Not connected — reconnecting…', true);
+  toast('Not connected. Reconnecting…', true);
   return false;
 }
 
@@ -240,7 +240,7 @@ function scoreboard() {
       <td><div class="pl"><span class="av">${p.avatar}</span><span class="nm">${esc(p.name)}</span>${p.connected ? '' : ' <small class="muted">(away)</small>'}</div></td>
       <td class="pts">${p.score}</td>
       <td class="tally" aria-label="${p.won} rounds won">${p.won ? '|'.repeat(p.won) : '–'}</td>
-      <td>${last ? `<small>#${pos} · ${clock(last.at)}</small><br><span class="badge ${last.status}">${STATUS_TEXT[last.status]}</span>` : '<small class="muted">—</small>'}</td>
+      <td>${last ? `<small>#${pos} · ${clock(last.at)}</small><br><span class="badge ${last.status}">${STATUS_TEXT[last.status]}</span>` : '<small class="muted">-</small>'}</td>
     </tr>`;
   }).join('');
   return `<section class="grid-paper" aria-label="Scoreboard">
@@ -287,7 +287,6 @@ function viewIntro() {
     </section>
     <button class="btn btn-red" data-act="play">▶ Play Game</button>
     <button class="btn btn-paper" data-act="rules">How to play</button>
-    <p class="safety">50% physical · 50% digital — walk carefully, never run or climb.</p>
   </div>`;
 }
 
@@ -303,7 +302,7 @@ function viewHome() {
     <div class="field"><div class="label">2 · Game mode</div>
       <div class="modes">
         <button class="mode-card" data-act="set" data-k="mode" data-v="random" aria-pressed="${s.mode === 'random'}"><b>🎲 Random</b><small>The computer picks the clue. Everyone gets the same challenge.</small><div class="ex">e.g. SPOON</div></button>
-        <button class="mode-card" data-act="set" data-k="mode" data-v="type" aria-pressed="${s.mode === 'type'}"><b>⌨️ Type a Home Item</b><small>Players take turns typing an item. Everyone races — even the typer!</small><div class="ex">e.g. WATER BOTTLE</div></button>
+        <button class="mode-card" data-act="set" data-k="mode" data-v="type" aria-pressed="${s.mode === 'type'}"><b>⌨️ Type a Home Item</b><small>Players take turns typing an item. Everyone races, even the typer!</small><div class="ex">e.g. WATER BOTTLE</div></button>
       </div></div>
     ${s.mode === 'random' ? `<div class="field"><div class="label">3 · Level</div>${chips('level', Object.entries(LEVELS), s.level)}</div>` : ''}
     <div class="field"><div class="label">Rounds</div>${chips('rounds', [[3, 3], [5, 5], [7, 7], [10, 10]], s.rounds)}</div>
@@ -375,7 +374,7 @@ function viewChoose() {
             <input class="input" id="ti" data-model="typeText" maxlength="40" placeholder="e.g. WATER BOTTLE" value="${esc(S.ui.typeText)}" autocomplete="off"></div>
           <div class="chips" style="margin-bottom:16px">${['SPOON', 'SOCK', 'BOOK', 'PILLOW', 'TOOTHBRUSH'].map(x => `<button class="chip" data-act="suggest" data-v="${x}">${x}</button>`).join('')}</div>
           <button class="btn btn-red" data-act="typeItem">Send to everyone</button>
-          <p class="muted" style="font-size:12px">Fair play: pick something safe — nothing hot, sharp or fragile.</p>
+          <p class="muted" style="font-size:12px">Fair play: pick something safe. Nothing hot, sharp or fragile.</p>
         </div>
       </section>`
       : `<section class="paper waiting tilt-r">
@@ -431,7 +430,7 @@ function captureBlock() {
     </section>`;
   }
   const last = mine[mine.length - 1];
-  const note = last && last.status === 'retake' ? `<p class="center light">🔄 The others asked for a clearer photo — try again!</p>`
+  const note = last && last.status === 'retake' ? `<p class="center light">🔄 The others asked for a clearer photo. Try again!</p>`
     : last && last.status === 'rejected' ? `<p class="center light">❌ That one didn't match. Keep looking!</p>` : '';
   return `<section class="stack">
     ${note}
@@ -473,9 +472,9 @@ function reviewBlock() {
              ${group('Needs action', EMOJI.action)}
              ${group('Not sure yet', EMOJI.unsure)}
            </div>
-           <p class="muted" style="font-size:12px;margin:0">Be fair and kind. 🔄 / 🔍 asks for a clearer photo — it doesn't mean wrong. 🤔 doesn't count as yes or no.</p>`}
+           <p class="muted" style="font-size:12px;margin:0">Be fair and kind. 🔄 / 🔍 asks for a clearer photo. It doesn't mean wrong. 🤔 doesn't count as yes or no.</p>`}
       <hr class="rule">
-      <div class="votes-strip">${pills || '<small class="muted">No one else can vote — auto-approving.</small>'}</div>
+      <div class="votes-strip">${pills || '<small class="muted">No one else can vote. Auto-approving.</small>'}</div>
       ${isHost() ? `<div style="margin-top:14px"><button class="btn btn-dark btn-sm" data-act="forceResolve" style="width:100%">Close the vote now</button></div>` : ''}
     </section>`;
 }
@@ -523,7 +522,7 @@ function viewResult() {
              <div class="winner-line">${esc(w.name)} ${w.id === S.you ? '(you!)' : ''}</div>
              <p class="hand" style="font-size:22px;margin:4px 0;color:var(--red)">+1 point</p>`
           : `<span class="stamp big stamp-in">Unsolved</span><p>No approved photo this round. Nobody scores.</p>`}
-      ${r.challenge ? `<p class="muted" style="margin-bottom:0">Case: “${esc(r.challenge.text)}”${r.challenge.level !== 1 ? ` — <b>${esc(r.challenge.answer)}</b>` : ''}</p>` : ''}
+      ${r.challenge ? `<p class="muted" style="margin-bottom:0">Case: “${esc(r.challenge.text)}”${r.challenge.level !== 1 ? `: <b>${esc(r.challenge.answer)}</b>` : ''}</p>` : ''}
     </section>
     ${photo ? `<figure class="polaroid"><span class="tape"></span><img src="${photo}" alt="Winning photo"><figcaption>Winning evidence</figcaption></figure>` : ''}
     ${scoreboard()}
@@ -561,37 +560,33 @@ function viewFinal() {
 }
 
 function rulesModal() {
+  const emo = list => list.map(([e]) => e).join(' ');
   return `<div class="modal paper rules">
     <button class="close" data-act="closeModal" aria-label="Close">✕</button>
     <h2 class="stencil" style="font-size:28px">How to play</h2>
-    <p><b>Goal:</b> find the object shown on your phone, take a real photo, and upload it before the others. The photo must be approved to win the round.</p>
-    <h3>Game flow</h3>
-    <ol>
-      <li>Tap <b>Play Game</b>.</li>
-      <li>The host picks the number of players (2–6) and a mode. Everyone joins with a name & avatar.</li>
-      <li>Everyone sees the same challenge.</li>
-      <li>Search your home safely.</li>
-      <li>Tap the camera and take a photo.</li>
-      <li><b>Retake</b> or <b>Save & Upload</b>.</li>
-      <li>The game shows who uploaded first.</li>
-      <li>The other players do the emoji check.</li>
-      <li>Scoreboard updates — next round!</li>
+    <p class="lead">Find it. Snap it. Upload first. Win the round.</p>
+    <ol class="steps">
+      <li>Join with a name & avatar</li>
+      <li>Read the clue</li>
+      <li>Find it at home</li>
+      <li>Photo &amp; upload</li>
     </ol>
     <h3>Levels</h3>
-    <p><b>1 · Word Hunt</b> — find a spoon. <b>2 · Riddle Hunt</b> — “I have pages and you read me.” <b>3 · Learn & Find</b> — find something used to tell time.</p>
+    <ol class="lv-list">
+      <li><b>Word Hunt</b><small>Find a spoon</small></li>
+      <li><b>Riddle Hunt</b><small>“I have pages and you read me”</small></li>
+      <li><b>Learn &amp; Find</b><small>Something used to tell time</small></li>
+    </ol>
     <h3>Emoji check</h3>
     <div class="emoji-key">
-      <span>✅ Correct object</span><span>❌ Wrong object</span>
-      <span>👍 This matches</span><span>🔄 Please retake</span>
-      <span>💯 Perfect match</span><span>🔍 Blurry / unclear</span>
-      <span>🎯 Exact match</span><span>👎 Does not match</span>
-      <span>👏 Approved</span><span>🤔 Not sure yet</span>
+      <div><span>${emo(EMOJI.positive)}</span><small>Approve</small></div>
+      <div><span>${emo(EMOJI.action)}</span><small>Reject / retake</small></div>
+      <div><span>${emo(EMOJI.unsure)}</span><small>Not sure</small></div>
     </div>
-    <p>Most of the other players must approve. You can't check your own photo. Retake requests mean "clearer please", not "wrong". 🤔 counts as neither.</p>
+    <p class="note">Majority of other players decides. You can't vote on your own photo.</p>
     <h3>Scoring</h3>
-    <p>First approved photo = <b>1 point</b>. Wrong or not approved = 0. Emojis = no points. If the first photo is wrong, the next earliest correct photo can win. Most points after all rounds wins; a tie means one tiebreaker round.</p>
-    <h3>Safety & fair play</h3>
-    <p>Walk, don't run. Don't climb or reach into unsafe places. Don't touch hot, sharp, fragile or dangerous things. Fresh photos only. Be fair and kind with emojis.</p>
+    <p class="note">First approved photo = <b>1 point</b>. Tie → one tiebreaker round.</p>
+    <p class="note safe">⚠️ Walk, don't run. Nothing hot, sharp or high up.</p>
   </div>`;
 }
 
