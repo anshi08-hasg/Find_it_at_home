@@ -120,7 +120,7 @@ Also:
   - the winner's avatar sat beside the stamp instead of below it
 
 ## 9. Solo mode
-**Status:** not yet committed
+**Commit:** `ee9ab0e`
 
 - **Starting:** "Solo" is the first option under *How many players?*.
   - The game-mode picker is hidden, because solo is always Random. Typing your own item to find would be trivial.
