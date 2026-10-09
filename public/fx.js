@@ -15,6 +15,7 @@ const pref = {
 // ---------- audio engine ----------
 let ctx = null, out = null, noise = null;
 let muted = pref.get('fiah.muted') === '1';
+let musicOn = pref.get('fiah.music') !== '0';
 
 function audio() {
   if (!ctx) {
@@ -30,11 +31,14 @@ function audio() {
     const d = noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   }
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state === 'suspended') ctx.resume().then(() => Music.sync(), () => {});
   return ctx;
 }
 // browsers only allow audio after a user gesture; unlock on the first one
-for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, audio, { once: true, passive: true });
+const unlock = () => { audio(); Music.sync(); };
+for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, unlock, { once: true, passive: true });
+// no music while the phone is showing another app
+document.addEventListener('visibilitychange', () => Music.sync());
 
 // sounds scheduled before the unlock would all fire at once later, so drop them instead
 const live = () => { const a = audio(); return a && a.state === 'running' && !muted ? a : null; };
@@ -78,6 +82,86 @@ const bell = (f, at = 0, dur = .8, vol = .12) => {
   tone({ f: f * 5.4, at, dur: dur * .25, vol: vol * .08 });
 };
 const pluck = (f, at = 0, vol = .15, dur = .25) => tone({ f, at, dur, vol, type: 'triangle', attack: .003 });
+
+// ---------- background music ----------
+// A quiet sneaking-detective groove, generated live: a plucked bass walking down
+// Am - G - F - E (the classic mystery descent), a few soft vibraphone notes on top,
+// and in "hunt" mood, brushed hi-hats and a light snare that add some hurry.
+// Notes are scheduled ~0.3s ahead on the audio clock so timing never drifts.
+const Music = (() => {
+  const LEVEL = .32;                      // well under the sound effects
+  const EIGHTH = 60 / 96 / 2;             // 96 bpm
+  const SWING = [1.14, .86];              // a gentle shuffle: long-short eighths
+  const midi = m => 440 * Math.pow(2, (m - 69) / 12);
+  const BASS = [                          // one bar per chord, eighth notes, 0 = rest
+    [45, 0, 52, 0, 45, 48, 0, 52],        // Am
+    [43, 0, 50, 0, 43, 47, 0, 50],        // G
+    [41, 0, 48, 0, 41, 45, 0, 48],        // F
+    [40, 0, 47, 0, 40, 44, 0, 47],        // E
+  ];
+  const VIBES = { 2: 76, 11: 74, 18: 72, 26: 71, 30: 68 }; // step in the 32-step loop -> note
+  let bus = null, timer = null, next = 0, step = 0, mood = 'calm';
+
+  function note(t, f, { type = 'sine', dur = .3, vol = .2, attack = .006, lp } = {}) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.value = f;
+    env(g, t, vol, attack, dur);
+    let n = o;
+    if (lp) { const fl = ctx.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = lp; n.connect(fl); n = fl; }
+    n.connect(g).connect(bus);
+    o.start(t); o.stop(t + dur + .05);
+  }
+  function brush(t, f, dur, vol, type = 'highpass') {
+    const src = ctx.createBufferSource(); src.buffer = noise;
+    const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f;
+    const g = ctx.createGain(); env(g, t, vol, .002, dur);
+    src.connect(fl).connect(g).connect(bus);
+    src.start(t, Math.random() * 1.5); src.stop(t + dur + .05);
+  }
+  function play(i, t) {
+    const pos = i % 8, b = BASS[(i >> 3) % 4][pos];
+    if (b) { note(t, midi(b), { type: 'triangle', dur: .3, vol: .5, lp: 650 }); note(t, midi(b + 12), { dur: .12, vol: .08 }); }
+    const v = VIBES[i % 32];
+    if (v) { note(t, midi(v), { dur: 1.8, vol: .1, attack: .01 }); note(t, midi(v) * 4, { dur: .5, vol: .012 }); }
+    if (mood === 'hunt') {
+      if (pos % 2) brush(t, 7000, .05, .07);                       // hi-hat on the off-beats
+      if (pos === 2 || pos === 6) brush(t, 1800, .1, .05, 'bandpass'); // brushed snare on 2 and 4
+    }
+  }
+  function tick() {
+    if (!ctx || ctx.state !== 'running') return;
+    if (next < ctx.currentTime) next = ctx.currentTime + .05;      // catch up after a stall instead of bursting
+    while (next < ctx.currentTime + .3) { play(step, next); next += EIGHTH * SWING[step % 2]; step++; }
+  }
+  const wanted = () => musicOn && !muted && !document.hidden && ctx && ctx.state === 'running';
+
+  return {
+    // start or stop to match the settings, fading so it never clicks in or out
+    sync() {
+      if (wanted() && !timer) {
+        if (!bus) { bus = ctx.createGain(); bus.gain.value = 0; bus.connect(out); }
+        bus.gain.cancelScheduledValues(ctx.currentTime);
+        bus.gain.setTargetAtTime(LEVEL, ctx.currentTime, .8);
+        next = ctx.currentTime + .1; step = 0;
+        timer = setInterval(tick, 90);
+        tick();
+      } else if (!wanted() && timer) {
+        clearInterval(timer); timer = null;
+        if (bus && ctx) { bus.gain.cancelScheduledValues(ctx.currentTime); bus.gain.setTargetAtTime(0, ctx.currentTime, .08); }
+      }
+    },
+    mood(m) { mood = m; },
+    // dip under a big moment (stamp, fanfare), then come back up
+    duck(ms = 3000) {
+      if (!bus || !ctx || !timer) return;
+      const t = ctx.currentTime;
+      bus.gain.cancelScheduledValues(t);
+      bus.gain.setTargetAtTime(LEVEL * .2, t, .08);
+      bus.gain.setTargetAtTime(LEVEL, t + ms / 1000, .6);
+    },
+    playing: () => !!timer,
+  };
+})();
 
 const Sound = {
   // UI
@@ -124,12 +208,18 @@ const Sound = {
   },
 
   muted: () => muted,
-  toggle() {
-    muted = !muted;
+  // 'all' = music + effects, 'fx' = effects only, 'off' = silent
+  state: () => muted ? 'off' : musicOn ? 'all' : 'fx',
+  cycle() {
+    if (muted) { muted = false; musicOn = true; }
+    else if (musicOn) musicOn = false;
+    else muted = true;
     pref.set('fiah.muted', muted ? '1' : '0');
+    pref.set('fiah.music', musicOn ? '1' : '0');
     const a = audio();
     if (a && out) out.gain.setTargetAtTime(muted ? 0 : .8, a.currentTime, .02);
-    return muted;
+    Music.sync();
+    return Sound.state();
   },
 };
 
@@ -202,5 +292,6 @@ const FX = {
 };
 
 window.Sound = Sound;
+window.Music = Music;
 window.FX = FX;
 })();

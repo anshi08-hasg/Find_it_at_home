@@ -241,6 +241,27 @@ Working from a detailed redesign brief (written for players from children to gra
   - Final run: no problems, no console errors.
 - The project has no lint, test or build scripts. All JavaScript files pass `node --check`.
 
+## 11. Simpler photo buttons and background music
+**Photo preview (`1d5b1e3`):** the buttons are now just **🔄 Retake** and **✓ Save**, with **Saving…** and a spinner while the photo uploads.
+
+**Background music (`public/fx.js`):**
+- A quiet detective groove generated live in the browser, with no audio files, so it works offline.
+  - A plucked bass walks down Am → G → F → E, with a gentle shuffle at 96 bpm.
+  - A few soft vibraphone notes sit on top.
+- **Two moods:**
+  - **Hunt:** brushed hi-hats and a light snare add a sense of hurry.
+  - **Calm:** menus, the lobby, photo checks and results get just bass and vibes.
+- It plays well below the sound effects and dips under the round title card, round results and the final fanfare.
+- Notes are timed on the browser's audio clock, so the beat never drifts, and the music fades in and out instead of clicking.
+- It starts on the first tap, as browsers require, and pauses when the phone switches to another app or tab.
+- **Sound button:** 🔊 now cycles **music + effects → 🔈 effects only → 🔇 all off**, with a toast saying which. The choice is remembered.
+- **Tested** in headless Chrome:
+  - no music before the first tap, music after it
+  - the 3-way button cycle
+  - the music stops when the tab is hidden and resumes when it's shown
+  - the full two-player game still passes with no errors
+  - The music itself hasn't been listened to; that needs a real device.
+
 ---
 
 ## Known issues and to-dos

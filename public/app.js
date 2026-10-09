@@ -79,7 +79,12 @@ function announce(text) {
 }
 
 // sound & motion live in fx.js
-const { Sound, FX } = window;
+const { Sound, Music, FX } = window;
+const SOUND_STATES = {
+  all: { icon: '🔊', label: 'Music and sound effects on' },
+  fx: { icon: '🔈', label: 'Music off, sound effects on' },
+  off: { icon: '🔇', label: 'All sound off' },
+};
 
 // ---------- motion bookkeeping ----------
 // render() rebuilds the page on every update, so animations are keyed:
@@ -204,12 +209,12 @@ function phaseChange(prev, cur) {
     const c = cur.challenge;
     FX.slate(esc(cur.tiebreak ? 'Tiebreaker' : `Case ${cur.round} of ${cur.totalRounds}`), c ? esc(c.typedBy ? 'Home item' : c.levelName) : '');
     S.enterBase = FX.reduced() ? 0 : 1050;
-    Sound.start(); buzz(120);
+    Sound.start(); buzz(120); Music.duck(1600);
     if (c) announce(`${cur.tiebreak ? 'Tiebreaker' : `Round ${cur.round} of ${cur.totalRounds}`}. ${c.level === 1 ? 'Find: ' + c.text : c.text}`);
     later(1050, Sound.paper);
   }
   if (cur.phase === 'choose' || (cur.phase === 'lobby' && prev && prev.phase !== 'lobby')) Sound.paper();
-  if (cur.phase === 'result' || cur.phase === 'final') FX.clearOverlays();
+  if (cur.phase === 'result' || cur.phase === 'final') { FX.clearOverlays(); Music.duck(cur.phase === 'final' ? 5000 : 3000); }
   if (cur.phase === 'result') {
     // timed to the stamp hitting the paper in the CSS (~600ms)
     const res = cur.lastResult || {};
@@ -317,9 +322,10 @@ function topbar(back = false) {
   </header>`;
 }
 
+// one button cycles: music + effects -> effects only -> off
 function soundBtn(cls = '') {
-  const off = Sound.muted();
-  return `<button class="icon-btn ${cls}" data-act="sound" aria-pressed="${!off}" aria-label="Sound" title="${off ? 'Sound is off' : 'Sound is on'}">${off ? '🔇' : '🔊'}</button>`;
+  const st = SOUND_STATES[Sound.state()];
+  return `<button class="icon-btn ${cls}" data-act="sound" aria-label="Sound: ${st.label}. Tap to change." title="${st.label}">${st.icon}</button>`;
 }
 
 function chips(name, options, value) {
@@ -880,6 +886,7 @@ function render() {
     if (key === 'intro') later(620, Sound.stamp);
     else if (key.startsWith('home')) Sound.paper();
   }
+  Music.mood(r && r.phase === 'hunt' && !r.reviewing ? 'hunt' : 'calm');
   const since = Date.now() - S.view.at;
   const app = $('#app');
   app.classList.toggle('enter', since < 4500);
@@ -984,7 +991,12 @@ function act(a, d = {}) {
     case 'rules': openModal('rules'); break;
     case 'scores': openModal('scores'); break;
     case 'closeModal': case 'backdrop': closeModal(); return;
-    case 'sound': if (!Sound.toggle()) Sound.select(); break;
+    case 'sound': {
+      const st = Sound.cycle();
+      if (st !== 'off') Sound.select();
+      toast(SOUND_STATES[st].label);
+      break;
+    }
     case 'tab': u.tab = d.v; break;
     case 'avatar': u.avatar = d.v; mark('av:' + d.v); Sound.select(); savePrefs(); break;
     case 'set':
