@@ -57,6 +57,7 @@ function publicState(room) {
   const ch = room.challenge;
   return {
     code: room.code,
+    solo: !!room.solo,
     hostId: room.hostId,
     seats: room.seats,
     settings: room.settings,
@@ -168,7 +169,7 @@ function nextReview(room) {
     if (!room.reviewing) pauseTimer(room);
     room.reviewing = pending[0].id;
     const u = pending[0];
-    broadcast(room, { t: 'firstUpload', pid: u.pid, uploadId: u.id });
+    if (!room.solo) broadcast(room, { t: 'firstUpload', pid: u.pid, uploadId: u.id });
     checkVotes(room); // handles the "nobody can vote" case
   } else {
     room.reviewing = null;
@@ -176,7 +177,9 @@ function nextReview(room) {
   }
 }
 
+// solo players check their own photo (honour system); otherwise everyone but the uploader votes
 function eligibleVoters(room, upload) {
+  if (room.solo) return room.players.filter(p => p.connected && p.id === upload.pid);
   return room.players.filter(p => p.connected && p.id !== upload.pid);
 }
 
@@ -200,7 +203,7 @@ function checkVotes(room, force = false) {
   }
   u.status = (retake > 0 && retake >= wrong) ? 'retake' : 'rejected';
   const who = getPlayer(room, u.pid);
-  toast(room, u.status === 'retake'
+  if (!room.solo) toast(room, u.status === 'retake'
     ? `${who ? who.name : 'Player'} needs a clearer photo. Retake!`
     : `${who ? who.name : 'That'}'s evidence was not approved. The hunt continues!`);
   room.reviewing = null;
@@ -271,11 +274,14 @@ function attach(ws, room, player) {
 const handlers = {
   create(ws, m) {
     const s = m.settings || {};
+    const solo = Number(s.seats) === 1;
     const room = {
       code: newCode(),
-      seats: Math.min(6, Math.max(2, Number(s.seats) || 4)),
+      solo,
+      seats: solo ? 1 : Math.min(6, Math.max(2, Number(s.seats) || 4)),
       settings: {
-        mode: s.mode === 'type' ? 'type' : 'random',
+        // typing your own item to find would make solo trivial, so solo is always random
+        mode: s.mode === 'type' && !solo ? 'type' : 'random',
         level: ['1', '2', '3', 'mixed'].includes(String(s.level)) ? String(s.level) : 'mixed',
         rounds: Math.min(15, Math.max(1, Number(s.rounds) || 5)),
         timer: [0, 60, 90, 120, 180].includes(Number(s.timer)) ? Number(s.timer) : 120,
@@ -288,6 +294,8 @@ const handlers = {
     room.hostId = p.id;
     rooms.set(room.code, room);
     attach(ws, room, p);
+    // nobody to wait for: go straight into the first case
+    if (solo) return startRound(room);
     sync(room);
   },
 
@@ -295,6 +303,7 @@ const handlers = {
     const room = rooms.get(String(m.code || '').toUpperCase().trim());
     if (!room) return send(ws, { t: 'error', text: 'No case found with that code.' });
     if (room.phase !== 'lobby') return send(ws, { t: 'error', text: 'That game has already started.' });
+    if (room.solo) return send(ws, { t: 'error', text: 'That is a solo case. Ask them to start a group game.' });
     if (room.players.length >= room.seats) return send(ws, { t: 'error', text: 'That game room is full.' });
     const name = clean(m.name, 16) || 'Detective';
     if (room.players.some(p => p.name.toLowerCase() === name.toLowerCase()))
@@ -356,7 +365,7 @@ const handlers = {
       room.challenge = pick(levelForRound(room), room.used);
       beginHunt(room);
     }
-    toast(room, `${me.name} asked for a different case.`);
+    if (!room.solo) toast(room, `${me.name} asked for a different case.`);
     sync(room);
   },
 
@@ -382,7 +391,7 @@ const handlers = {
 
   vote(ws, m, room, me) {
     const u = room.uploads.find(x => x.id === room.reviewing);
-    if (!u || u.id !== m.uploadId || u.pid === me.id) return;
+    if (!u || u.id !== m.uploadId || (u.pid === me.id && !room.solo)) return;
     if (!ALL_EMOJI.includes(m.emoji)) return;
     u.votes[me.id] = m.emoji;
     sync(room);
@@ -404,6 +413,7 @@ const handlers = {
   playAgain(ws, m, room, me) {
     if (me.id !== room.hostId || room.phase !== 'final') return;
     resetGame(room);
+    if (room.solo) return startRound(room);
     sync(room);
   },
 

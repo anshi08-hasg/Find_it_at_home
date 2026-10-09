@@ -119,6 +119,32 @@ Also:
   - the clue reveal broke on words that wrap onto two lines
   - the winner's avatar sat beside the stamp instead of below it
 
+## 9. Solo mode
+**Status:** not yet committed
+
+- **Starting:** "Solo" is the first option under *How many players?*.
+  - The game-mode picker is hidden, because solo is always Random. Typing your own item to find would be trivial.
+  - The button reads **Start solo case**.
+  - The lobby is skipped; the game goes straight into Case 1.
+- **Checking the photo:** with nobody else to vote, the player checks their own photo: "Does it match: SPOON?" with **🔄 Retake** or **✅ It matches**.
+  - The clue card is hidden during the check so the question and buttons fit on a phone screen.
+- **Round result:** "You found it!", the time it took ("Found in 5.8s"), and progress ("Solved 2 of 3 so far") in place of the scoreboard.
+  - If the player gives up or time runs out: "This one got away."
+  - The "Host: end this round" link reads **Give up on this case**.
+- **Final screen:** a stamp (Perfect! / Good hunt! / Unsolved), cases solved, total time and time per case, plus the case history. There's no podium.
+- **Personal best:** saved on the phone for each combination of level, round count and timer. More cases solved wins, and equal counts go to the faster time.
+  - A new best gets "New personal best!", a fanfare and big confetti.
+  - Otherwise the screen shows "Your best: 2/3 in 8.8s".
+- **Play again** restarts a solo game right away.
+- **Server:**
+  - A solo room has one seat and can't be joined ("That is a solo case").
+  - The player votes on their own photo.
+  - The "first upload" alert and toasts aimed at other players are switched off.
+- Intro now says **1–6 players**, and How to Play has a "Playing alone?" line.
+- **Tested** with an automated solo run: setup, straight into the hunt, a retake, a match, a give-up, the finale, a saved personal best, then a second run showing it.
+  - The two-player test still passes.
+  - No errors in either.
+
 ---
 
 ## Known issues and to-dos

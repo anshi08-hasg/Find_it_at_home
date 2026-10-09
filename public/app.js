@@ -159,7 +159,7 @@ function react(prev, cur) {
   for (const u of cur.uploads) {
     if (u.pid !== S.you || u.status === 'pending' || u.status === 'approved') continue;
     const o = prev.uploads.find(x => x.id === u.id);
-    if (o && o.status === 'pending') { Sound.stamp(); buzz([60, 40, 60]); }
+    if (o && o.status === 'pending' && !cur.solo) { Sound.stamp(); buzz([60, 40, 60]); }
   }
   for (const p of cur.players) {
     const o = prev.players.find(x => x.id === p.id);
@@ -187,7 +187,8 @@ function phaseChange(prev, cur) {
     // timed to the stamp hitting the paper in the CSS (~600ms)
     const res = cur.lastResult || {};
     if (res.winnerId) {
-      later(600, () => { Sound.stamp(); FX.confetti({ count: res.winnerId === S.you ? 170 : 70, origin: [.5, .28] }); });
+      // solo keeps the big burst for the finale
+      later(600, () => { Sound.stamp(); FX.confetti({ count: cur.solo ? 70 : res.winnerId === S.you ? 170 : 70, origin: [.5, .28] }); });
       later(780, Sound.win);
       later(1050, Sound.point);
       if (res.winnerId === S.you) buzz([100, 50, 100, 50, 200]);
@@ -196,7 +197,19 @@ function phaseChange(prev, cur) {
       later(820, Sound.lose);
     }
   }
-  if (cur.phase === 'final') {
+  if (cur.phase === 'final' && cur.solo) {
+    // score this run against the best one saved on this phone for the same setup
+    const solved = cur.history.filter(h => h.winnerId).length;
+    const time = cur.history.reduce((t, h) => t + (h.winnerId ? h.time : 0), 0);
+    const k = `fiah.best.${cur.settings.level}.${cur.totalRounds}.${cur.settings.timer}`;
+    const prev = store.get(k, null);
+    const isNew = solved > 0 && (!prev || solved > prev.solved || (solved === prev.solved && time < prev.time));
+    if (isNew) store.set(k, { solved, time });
+    S.solo = { solved, time, prev, isNew };
+    later(600, () => { Sound.stamp(); if (solved) FX.confetti({ count: isNew ? 220 : 110, origin: [.5, .3], power: isNew ? 1.15 : 1 }); });
+    later(800, solved ? (isNew ? Sound.fanfare : Sound.win) : Sound.lose);
+    if (isNew) later(800, () => buzz([100, 50, 100, 50, 260]));
+  } else if (cur.phase === 'final') {
     // podium: 3rd and 2nd thud into place, drumroll, then the winner lands with the stamp
     later(500, Sound.thud);
     later(1000, Sound.thud);
@@ -344,7 +357,7 @@ function viewIntro() {
       <h1 class="game-title">Find it <span>at home!</span></h1>
       <p class="tagline">Find it. Click it. Upload it. <b>Win it!</b></p>
       <div class="intro-meta">
-        <div><b>2–6</b>Players</div>
+        <div><b>1–6</b>Players</div>
         <div><b>2 modes</b>Random / Type an item</div>
         <div><b>1 point</b>First approved photo</div>
       </div>
@@ -356,23 +369,23 @@ function viewIntro() {
 }
 
 function viewHome() {
-  const u = S.ui, s = u.settings, host = u.tab === 'host';
+  const u = S.ui, s = u.settings, host = u.tab === 'host', solo = s.seats === 1;
   const common = `
     <div class="field"><label class="label" for="nm">Detective name</label>
       <input class="input" id="nm" data-model="name" maxlength="16" autocomplete="nickname" placeholder="Enter your name" value="${esc(u.name)}"></div>
     <div class="field"><div class="label">Pick your avatar</div>
       <div class="avatars">${AVATARS.map(a => `<button class="avatar-opt" data-act="avatar" data-v="${a}" aria-pressed="${a === u.avatar}" aria-label="Avatar ${a}"${a === u.avatar ? pop('av:' + a) : ''}>${a}</button>`).join('')}</div></div>`;
   const hostForm = `
-    <div class="field"><div class="label">1 · How many players?</div>${chips('seats', [2, 3, 4, 5, 6].map(n => [n, n]), s.seats)}</div>
-    <div class="field"><div class="label">2 · Game mode</div>
+    <div class="field"><div class="label">1 · How many players?</div>${chips('seats', [[1, 'Solo'], ...[2, 3, 4, 5, 6].map(n => [n, n])], s.seats)}</div>
+    ${solo ? `<p class="solo-note">Just you against the clock. Check your own photos honestly and beat your best.</p>` : `<div class="field"><div class="label">2 · Game mode</div>
       <div class="modes">
         <button class="mode-card" data-act="set" data-k="mode" data-v="random" aria-pressed="${s.mode === 'random'}"${s.mode === 'random' ? pop('chip:mode:random') : ''}><b>🎲 Random</b><small>The computer picks the clue. Everyone gets the same challenge.</small><div class="ex">e.g. SPOON</div></button>
         <button class="mode-card" data-act="set" data-k="mode" data-v="type" aria-pressed="${s.mode === 'type'}"${s.mode === 'type' ? pop('chip:mode:type') : ''}><b>⌨️ Type a Home Item</b><small>Players take turns typing an item. Everyone races, even the typer!</small><div class="ex">e.g. WATER BOTTLE</div></button>
-      </div></div>
-    ${s.mode === 'random' ? `<div class="field"><div class="label">3 · Level</div>${chips('level', Object.entries(LEVELS), s.level)}</div>` : ''}
+      </div></div>`}
+    ${s.mode === 'random' || solo ? `<div class="field"><div class="label">${solo ? 2 : 3} · Level</div>${chips('level', Object.entries(LEVELS), s.level)}</div>` : ''}
     <div class="field"><div class="label">Rounds</div>${chips('rounds', [[3, 3], [5, 5], [7, 7], [10, 10]], s.rounds)}</div>
     <div class="field"><div class="label">Timer per round</div>${chips('timer', [[0, 'Off'], [60, '1 min'], [90, '1½'], [120, '2 min'], [180, '3 min']], s.timer)}</div>
-    <button class="btn btn-red" data-act="create" ${S.online && !u.busy ? '' : 'disabled'}>Open case file</button>`;
+    <button class="btn btn-red" data-act="create" ${S.online && !u.busy ? '' : 'disabled'}>${solo ? 'Start solo case' : 'Open case file'}</button>`;
   const joinForm = `
     <div class="field"><label class="label" for="cd">Case code (from the host's screen)</label>
       <input class="input code" id="cd" data-model="code" maxlength="4" autocapitalize="characters" autocomplete="off" placeholder="ABCD" value="${esc(u.code)}"></div>
@@ -509,6 +522,7 @@ function reviewBlock() {
   const isMine = u.pid === S.you;
   const voters = r.players.filter(p => p.connected && p.id !== u.pid);
   const myVote = u.votes[S.you];
+  if (r.solo) return soloCheck(u);
   const group = (title, list) => `<div><div class="emoji-group-title label">${title}</div><div class="emoji-row">${list.map(([e, l]) =>
     `<button class="emoji-btn" data-act="vote" data-v="${e}" aria-pressed="${myVote === e}" aria-label="${l}"${myVote === e ? pop(`vote:${u.id}:${e}`) : ''}>${e}<small>${l}</small></button>`).join('')}</div></div>`;
   const pills = voters.map(v => {
@@ -541,6 +555,26 @@ function reviewBlock() {
     </section>`;
 }
 
+// nobody else can check a solo photo, so the player does it honestly
+function soloCheck(u) {
+  const c = S.room.challenge;
+  const target = c ? (c.level === 1 ? c.text : c.answer) : '';
+  return `
+    <div class="review-banner"><div class="label light" style="color:var(--kraft)">Self-check · found in ${clock(u.at)}</div></div>
+    <figure class="polaroid compact"${fxa('rev:' + u.id)}><span class="tape"></span>
+      ${S.photos[u.id] ? `<img src="${S.photos[u.id]}" alt="Your photo">` : `<div style="aspect-ratio:1;display:grid;place-items:center;background:#222;color:#aaa">Loading photo…</div>`}
+      <figcaption>Your evidence</figcaption>
+    </figure>
+    <section class="paper center">
+      <h2 class="section">Does it match${target ? `: <span class="target">${esc(target)}</span>` : ''}?</h2>
+      <p class="muted" style="margin-top:0">Be honest, detective. Only you can check this one.</p>
+      <div class="btn-row">
+        <button class="btn btn-paper" data-act="vote" data-v="🔄">🔄 Retake</button>
+        <button class="btn btn-red" data-act="vote" data-v="✅">✅ It matches</button>
+      </div>
+    </section>`;
+}
+
 // while a photo is being checked, others can still send theirs — it joins the upload queue
 function queueBlock() {
   const r = S.room, u = r.uploads.find(x => x.id === r.reviewing);
@@ -558,12 +592,12 @@ function viewHunt() {
   return `<div class="screen">
     ${topbar()}
     ${timerBlock()}
-    ${challengeCard()}
+    ${r.solo && r.reviewing ? '' : challengeCard()}
     ${r.reviewing ? reviewBlock() + queueBlock() : `
       ${captureBlock()}
       ${canSkip ? `<button class="link-btn light" data-act="skip">Can't find it? Ask for a different case (${r.skipsLeft} left)</button>` : ''}`}
     ${evidenceLog()}
-    ${isHost() && !r.reviewing ? `<button class="link-btn light" data-act="endRound" style="opacity:.7">Host: end this round with no winner</button>` : ''}
+    ${isHost() && !r.reviewing ? `<button class="link-btn light" data-act="endRound" style="opacity:.7">${r.solo ? 'Give up on this case' : 'Host: end this round with no winner'}</button>` : ''}
   </div>`;
 }
 
@@ -574,6 +608,7 @@ function viewResult() {
   const finalNext = r.round >= r.totalRounds || r.tiebreak;
   const top = Math.max(...r.players.map(p => p.score));
   const tied = r.players.filter(p => p.score === top).length > 1;
+  const won = res.uploadId && r.uploads.find(u => u.id === res.uploadId);
   let nextLabel = 'Next case ▶';
   if (finalNext) nextLabel = tied ? 'Tie! Play the tiebreaker ▶' : 'See final results ▶';
   return `<div class="screen">
@@ -581,13 +616,14 @@ function viewResult() {
     <section class="paper result-card tilt-l">
       ${w ? `<span class="stamp big green">Solved!</span>
              <div class="big-avatar">${w.avatar}</div>
-             <div class="winner-line">${esc(w.name)} ${w.id === S.you ? '(you!)' : ''}</div>
+             <div class="winner-line">${r.solo ? 'You found it!' : `${esc(w.name)} ${w.id === S.you ? '(you!)' : ''}`}</div>
+             ${r.solo && won ? `<p class="found-in">Found in ${clock(won.at)}</p>` : ''}
              <p class="hand plus-one">+1 point</p>`
-          : `<span class="stamp big">Unsolved</span><p>No approved photo this round. Nobody scores.</p>`}
+          : `<span class="stamp big">Unsolved</span><p>${r.solo ? 'This one got away. On to the next case!' : 'No approved photo this round. Nobody scores.'}</p>`}
       ${r.challenge ? `<p class="muted" style="margin-bottom:0">Case: “${esc(r.challenge.text)}”${r.challenge.level !== 1 ? `: <b>${esc(r.challenge.answer)}</b>` : ''}</p>` : ''}
     </section>
     ${photo ? `<figure class="polaroid"><span class="tape"></span><img src="${photo}" alt="Winning photo"><figcaption>Winning evidence</figcaption></figure>` : ''}
-    ${scoreboard()}
+    ${r.solo ? `<p class="center light solo-progress">Solved <b>${me() ? me().score : 0}</b> of ${r.round} so far · ${r.totalRounds - r.round} to go</p>` : scoreboard()}
     ${isHost() ? `<button class="btn btn-red" data-act="next">${nextLabel}</button>`
       : `<p class="center light">Waiting for the host to continue<span class="dots"></span></p>`}
   </div>`;
@@ -610,13 +646,41 @@ function viewFinal() {
     </section>
     <div class="podium">${pod.map((p, i) => p ? `<div class="step ${cls[i]}"><div class="av">${p.avatar}</div><div class="nm">${esc(p.name)}</div><div class="block">${place[i]}</div></div>` : '<div></div>').join('')}</div>
     ${scoreboard()}
-    <section class="paper">
+    ${historyTable()}
+    ${isHost() ? `<button class="btn btn-red" data-act="playAgain">Play again</button>` : `<p class="center light">The host can start a new game.</p>`}
+    <button class="btn btn-dark" data-act="leave">Leave</button>
+  </div>`;
+}
+
+function historyTable() {
+  return `<section class="paper">
       <div class="label">Case history</div>
       <table class="log"><thead><tr><th>#</th><th>Case</th><th>Solved by</th></tr></thead><tbody>
-      ${r.history.map(h => { const p = h.winnerId && player(h.winnerId); return `<tr><td>${h.tiebreak ? 'TB' : h.round}</td><td>${esc(h.challenge)}</td><td>${p ? p.avatar + ' ' + esc(p.name) + ` <small>${clock(h.time)}</small>` : '<small class="muted">Unsolved</small>'}</td></tr>`; }).join('')}
+      ${S.room.history.map(h => { const p = h.winnerId && player(h.winnerId); return `<tr><td>${h.tiebreak ? 'TB' : h.round}</td><td>${esc(h.challenge)}</td><td>${p ? p.avatar + ' ' + esc(p.name) + ` <small>${clock(h.time)}</small>` : '<small class="muted">Unsolved</small>'}</td></tr>`; }).join('')}
       </tbody></table>
+    </section>`;
+}
+
+function viewSoloFinal() {
+  const r = S.room, st = S.solo || { solved: 0, time: 0 }, p = me();
+  const all = st.solved === r.totalRounds;
+  const headline = st.isNew ? 'New personal best!' : all ? 'Every case solved!' : st.solved ? `${st.solved} of ${r.totalRounds} solved` : 'No cases solved this time';
+  return `<div class="screen">
+    ${topbar()}
+    <section class="paper result-card">
+      <div class="label">Case closed</div>
+      ${st.solved ? `<span class="stamp big green">${all ? 'Perfect!' : 'Good hunt!'}</span>` : `<span class="stamp big">Unsolved</span>`}
+      <div class="big-avatar">${p ? p.avatar : '🕵️'}</div>
+      <div class="winner-line">${headline}</div>
+      <div class="solo-stats">
+        <div><b>${st.solved}/${r.totalRounds}</b>Solved</div>
+        <div><b>${st.solved ? clock(st.time) : '-'}</b>Total time</div>
+        <div><b>${st.solved ? clock(st.time / st.solved) : '-'}</b>Per case</div>
+      </div>
+      ${st.prev && !st.isNew ? `<p class="best-line">Your best: ${st.prev.solved}/${r.totalRounds} in ${clock(st.prev.time)}</p>` : ''}
     </section>
-    ${isHost() ? `<button class="btn btn-red" data-act="playAgain">Play again</button>` : `<p class="center light">The host can start a new game.</p>`}
+    ${historyTable()}
+    <button class="btn btn-red" data-act="playAgain">Play again</button>
     <button class="btn btn-dark" data-act="leave">Leave</button>
   </div>`;
 }
@@ -648,6 +712,8 @@ function rulesModal() {
     <p class="note">Majority of other players decides. You can't vote on your own photo.</p>
     <h3>Scoring</h3>
     <p class="note">First approved photo = <b>1 point</b>. Tie → one tiebreaker round.</p>
+    <h3>Playing alone?</h3>
+    <p class="note">Pick <b>Solo</b>. Check your own photos honestly and beat your best time.</p>
     <p class="note safe">⚠️ Walk, don't run. Nothing hot, sharp or high up.</p>
   </div>`;
 }
@@ -665,7 +731,7 @@ function render() {
   let html;
   const r = S.room;
   if (r) {
-    html = { lobby: viewLobby, choose: viewChoose, hunt: viewHunt, result: viewResult, final: viewFinal }[r.phase]();
+    html = { lobby: viewLobby, choose: viewChoose, hunt: viewHunt, result: viewResult, final: r.solo ? viewSoloFinal : viewFinal }[r.phase]();
   } else {
     html = S.ui.screen === 'home' ? viewHome() : viewIntro();
   }
@@ -769,7 +835,7 @@ function act(a, d = {}) {
       savePrefs(); break;
     case 'create':
       if (needName()) return;
-      if (send({ t: 'create', name: u.name.trim(), avatar: u.avatar, settings: u.settings })) u.busy = true;
+      if (send({ t: 'create', name: u.name.trim(), avatar: u.avatar, settings: u.settings.seats === 1 ? { ...u.settings, mode: 'random' } : u.settings })) u.busy = true;
       setTimeout(() => { u.busy = false; }, 3000);
       break;
     case 'join':

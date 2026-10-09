@@ -727,3 +727,23 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
   .fx-slate, .slate-card { animation: fade .2s ease both !important; }
   .polaroid.sending { opacity: 0; }
 }
+
+/* ---------- solo ---------- */
+.solo-note { margin: -8px 0 24px; font-size: 14px; color: var(--ink-soft); }
+.target { color: var(--red); white-space: nowrap; }
+.found-in { margin: 2px 0 0; font-size: 15px; color: var(--ink-soft); }
+.solo-progress { margin: 0; font-size: 15px; }
+.solo-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 18px 0 4px; }
+.solo-stats div { border-top: 2px solid var(--ink); padding-top: 8px; font-size: 13px; line-height: 1.3; }
+.solo-stats b { display: block; font-family: var(--f-hand); font-size: 26px; font-weight: 400; color: var(--ink); }
+.best-line { margin: 12px 0 0; font-size: 14px; color: var(--ink-soft); }
+.enter .solo-stats div { animation: rise .45s var(--ease-out) backwards; }
+.enter .solo-stats div:nth-child(1) { animation-delay: calc(1000ms - var(--since, 0ms)); }
+.enter .solo-stats div:nth-child(2) { animation-delay: calc(1080ms - var(--since, 0ms)); }
+.enter .solo-stats div:nth-child(3) { animation-delay: calc(1160ms - var(--since, 0ms)); }
+.enter .result-card .found-in, .enter .result-card .best-line { animation: fade .5s ease backwards; animation-delay: calc(1250ms - var(--since, 0ms)); }
+/* six player options, Solo included, fit one row on a phone */
+.chips:has(> [data-k="seats"]) { gap: 6px; flex-wrap: nowrap; }
+.chip[data-k="seats"] { min-width: 0; flex: 1 1 auto; padding-inline: 8px; }
+/* smaller photo so the question and both buttons stay on screen */
+.polaroid.compact { max-width: 230px; padding-bottom: 34px; }
