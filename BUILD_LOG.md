@@ -283,7 +283,7 @@ The background music was too gentle, so I replaced it with **"The Chase"**, an o
 
 
 ## 13. Fitting the assignment brief
-**Status:** not yet committed
+**Commit:** `9cee9b6`
 
 After a review against the Hybrid Game brief (wellness theme, 50% physical / 50% social media, at most 10 emojis, all game elements, rule book, keep it simple), I made these changes.
 
