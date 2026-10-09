@@ -205,7 +205,7 @@ function checkVotes(room, force = false) {
   const who = getPlayer(room, u.pid);
   if (!room.solo) toast(room, u.status === 'retake'
     ? `${who ? who.name : 'Player'} needs a clearer photo. Retake!`
-    : `${who ? who.name : 'That'}'s evidence was not approved. The hunt continues!`);
+    : `${who ? who.name : 'That'}'s photo does not match. The next photo will be checked, so keep hunting!`);
   room.reviewing = null;
   nextReview(room);
   sync(room);

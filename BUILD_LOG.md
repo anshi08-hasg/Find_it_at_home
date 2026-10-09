@@ -145,6 +145,102 @@ Also:
   - The two-player test still passes.
   - No errors in either.
 
+## 10. Full UI/UX redesign
+**Status:** not yet committed
+
+Working from a detailed redesign brief (written for players from children to grandparents), I kept the detective case-file look but rebuilt how it's put together.
+
+**Design system (`public/style.css`, fully rewritten in one consistent file):**
+- **Colours:**
+  - The brief's palette: espresso background, parchment and light-paper cards, ink text, action red, antique gold, success green and error red.
+  - Every text-and-background pair was checked for contrast and is at least 4.5:1.
+  - Red is kept for primary actions and big moments only.
+- **Fonts:**
+  - **Bowlby One SC** for titles and big moments.
+  - **Nunito Sans** for everything people read or tap, from 15px up (17px for body text).
+  - **Special Elite** only for short decorative labels like CASE FILE.
+  - All three are saved locally so the game works offline. This replaces Black Ops One, Oswald, Permanent Marker and Courier Prime.
+- **Spacing and sizing:**
+  - Spacing on a 4px scale and three corner radii.
+  - One card shadow and one button style used everywhere.
+  - Every button, chip and field is at least 44px tall.
+- **Background:** the desk stripes and grain are much quieter, and the paper texture is fainter, so text stays readable.
+- **Selection is never shown by colour alone.**
+  - Chips, mode cards, avatars and emoji votes show a ✓.
+  - Status badges carry a symbol: ✓ approved, ✕ not a match, ↻ retake asked, … checking.
+
+**Screens:**
+- **Intro:**
+  - A large title and the tagline.
+  - An info row: 1–6 players, 2 game modes, 1 point per verified win.
+  - Play Game as the main button, with Join a game and How to play below it.
+  - The entrance animation is shortened to about 0.6s.
+- **Setup:**
+  - Numbered steps: name → avatar → players → game mode → level → rounds → time.
+  - Every field has a visible label and helper text, and the chosen level gets a one-line explanation.
+  - Player count is a 3×2 grid on phones so each option is easy to tap.
+  - On desktop the screen splits into two columns.
+  - **Inline validation:**
+    - A missing name or a wrong game code shows an error right under the field, which clears as soon as it's fixed.
+    - Server errors such as "name already taken" or "no game with that code" appear under the relevant field instead of as a toast.
+- **Lobby:**
+  - The game code is shown large, with one plain sentence on how to join.
+  - Long names are shortened with "…" instead of pushing the layout off-screen.
+- **Clue:**
+  - "Round 2 of 5" in the top bar.
+  - "Find this object" and the object name as the biggest thing on screen.
+  - The name's size is worked out from its longest word, so "SPOON" is huge and "EXTRAORDINARILY" still fits on a 360px phone without breaking.
+  - Riddles are in readable Nunito Sans instead of marker lettering.
+  - One short instruction, the camera button, and a one-line safety reminder.
+- **Photo preview:**
+  - Two-line buttons that explain themselves: Retake / "Take a new photo" and Save & Upload / "Send it to be checked".
+  - A spinner while uploading, and a "still uploading…" note after 12 seconds.
+  - If an upload fails, an error appears next to the photo and the player can retry.
+  - A hint about allowing camera access if the camera won't open.
+- **Uploaded first and checking:**
+  - The overlay now reads "Bea uploaded first!" with "It only counts if approved".
+  - The banner says "Uploaded first · not checked yet".
+  - The clue card is hidden during the check so the photo comes first. The check panel repeats what to look for.
+  - All 10 emojis have the brief's labels and are grouped: ✓ Yes, approve / ✕ No, or retake / ? Unsure.
+  - After voting, a ✓ confirms your choice and explains you can change it.
+  - A counter shows "Votes 1 of 3", with each voter marked waiting or voted.
+  - On desktop the photo and the voting sit side by side.
+- **Round result:** "Case solved!", then "Bea wins this round!", +1 point, "Bea now has 3 points.", and the clue and answer. The winning photo is shown smaller so the Next round button stays close.
+- **Scoreboard:**
+  - Columns for rank (1st, 2nd…), avatar, name, wins and points, with You and Leader tags.
+  - On phones, wins move under the name so the table always fits.
+  - Upload status only shows during a round.
+- **Final:** "Bea wins the game!" with the points and number of rounds, the podium, "Final standings" and the case history.
+- **How to Play:**
+  - The 8 steps from the brief, each with an icon.
+  - What the two game modes mean, the levels, and all 10 emojis with their meanings.
+  - Scoring, including that uploading first isn't enough on its own.
+  - The safety line: "Walk carefully. Do not run, climb, or touch dangerous objects."
+
+**Navigation and feedback:**
+- **Confirmation dialogs** before:
+  - leaving a game
+  - the host ending a round
+  - closing a vote early
+  - giving up a solo clue
+- A "Leave game" link is now available during play.
+- Dialogs move keyboard focus inside them, and Escape closes them.
+- **Screen readers:**
+  - The page is no longer read out on every update.
+  - One announcer reads key moments: the new clue, a photo uploaded or uploaded first, your vote, the round result, and a failed upload.
+- Icon buttons have names, and every avatar has a name ("Fox", "Panda"…).
+- Option groups use fieldset and legend so screen readers hear what each choice is for.
+
+**Server (`server.js`):** one message changed: a rejected photo now says "photo does not match. The next photo will be checked, so keep hunting!" Game rules, voting and scoring are unchanged.
+
+**Tested** in headless Chrome, using test scripts that aren't part of the repo:
+- The two-player game with animations and sound, and the solo run, both still pass.
+- A new **responsive audit** plays a Type-a-Home-Item game with the longest possible names and a 38-character item.
+  - It checks 14 screens at 360, 390, 430, 768, 1024 and 1440px for sideways scrolling, clipped text and tap targets under 44px.
+  - It found and fixed: player chips too small on phones, long names pushing the lobby sideways, long words breaking mid-word, and the scoreboard overflowing at 360px.
+  - Final run: no problems, no console errors.
+- The project has no lint, test or build scripts. All JavaScript files pass `node --check`.
+
 ---
 
 ## Known issues and to-dos
