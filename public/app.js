@@ -285,7 +285,8 @@ function viewIntro() {
         <div><b>1 point</b>First approved photo</div>
       </div>
     </section>
-    <button class="btn btn-red" data-act="play">▶ Play Game</button>
+    <button class="btn btn-red" data-act="play" data-v="host">▶ Play Game</button>
+    <button class="btn btn-dark" data-act="play" data-v="join">Join a case</button>
     <button class="btn btn-paper" data-act="rules">How to play</button>
   </div>`;
 }
@@ -315,10 +316,7 @@ function viewHome() {
   return `<div class="screen">
     <header class="topbar"><button class="icon-btn" data-act="back" aria-label="Back">←</button><div class="brand">🔎 Find It at Home!</div><button class="icon-btn" data-act="rules" aria-label="How to play">?</button></header>
     <div>
-      <div class="tabs" role="tablist">
-        <button role="tab" aria-selected="${host}" data-act="tab" data-v="host">Open a new case</button>
-        <button role="tab" aria-selected="${!host}" data-act="tab" data-v="join">Join a case</button>
-      </div>
+      <div class="tabs"><button aria-selected="true" tabindex="-1">${host ? 'Open a new case' : 'Join a case'}</button></div>
       <section class="folder tab-body"><div class="paper">${common}${host ? hostForm : joinForm}</div></section>
     </div>
   </div>`;
@@ -662,7 +660,7 @@ function needName() {
 function act(a, d = {}) {
   const u = S.ui;
   switch (a) {
-    case 'play': u.screen = 'home'; break;
+    case 'play': u.screen = 'home'; u.tab = d.v; break;
     case 'back': u.screen = 'intro'; break;
     case 'rules': S.modal = 'rules'; break;
     case 'scores': S.modal = 'scores'; break;

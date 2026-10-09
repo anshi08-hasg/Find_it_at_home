@@ -250,6 +250,7 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
   background: #6f5332; color: #e9d7b3;
 }
 .tabs button[aria-selected="true"] { background: var(--kraft); color: var(--ink); }
+.tabs button:only-child { flex: 0 0 auto; padding-inline: 22px; cursor: default; }
 .tab-body { border-top-left-radius: 0; margin-top: 0; }
 
 /* ---------- lobby ---------- */
