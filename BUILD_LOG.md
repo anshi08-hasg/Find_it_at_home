@@ -146,7 +146,7 @@ Also:
   - No errors in either.
 
 ## 10. Full UI/UX redesign
-**Status:** not yet committed
+**Commit:** `a7c8925`
 
 Working from a detailed redesign brief (written for players from children to grandparents), I kept the detective case-file look but rebuilt how it's put together.
 
