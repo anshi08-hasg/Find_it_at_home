@@ -75,10 +75,8 @@ button { cursor: pointer; }
 .screen {
   width: 100%; max-width: 560px; padding: 18px 16px 40px;
   display: flex; flex-direction: column; gap: 18px;
-  animation: slideIn .35s ease;
 }
 .screen.wide { max-width: 860px; }
-@keyframes slideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
 /* ---------- top bar ---------- */
 .topbar { display: flex; align-items: center; gap: 10px; color: var(--paper); }
@@ -107,8 +105,8 @@ button { cursor: pointer; }
   border-radius: 3px;
   padding: 22px 20px;
 }
-.paper.tilt-l { transform: rotate(-1.2deg); }
-.paper.tilt-r { transform: rotate(1deg); }
+.paper.tilt-l { --rot: -1.2deg; transform: rotate(var(--rot)); }
+.paper.tilt-r { --rot: 1deg; transform: rotate(var(--rot)); }
 
 .folder {
   position: relative; margin-top: 22px;
@@ -160,7 +158,7 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
 .stamp.big { font-size: 34px; border-width: 5px; padding: 6px 16px; }
 .stamp.green { color: var(--green); }
 .stamp.abs { position: absolute; }
-.stamp-in { animation: stampIn .45s cubic-bezier(.2,1.6,.4,1) both; }
+.flash .stamp-in { animation: stampIn .45s cubic-bezier(.2,1.6,.4,1) both; }
 @keyframes stampIn { from { transform: scale(2.4) rotate(-14deg); opacity: 0; } to { transform: scale(1) rotate(-8deg); opacity: .9; } }
 
 /* ---------- buttons ---------- */
@@ -272,8 +270,8 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
   padding: 8px 8px 10px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,.35);
   position: relative; border-radius: 2px;
 }
-.suspect:nth-child(odd) { transform: rotate(-1.5deg); }
-.suspect:nth-child(even) { transform: rotate(1.2deg); }
+.suspect:nth-child(odd) { --rot: -1.5deg; transform: rotate(var(--rot)); }
+.suspect:nth-child(even) { --rot: 1.2deg; transform: rotate(var(--rot)); }
 .suspect .mug {
   aspect-ratio: 1; display: grid; place-items: center; font-size: 42px;
   background: linear-gradient(180deg, #4a3a2c, #251b13); border-radius: 2px;
@@ -328,7 +326,7 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
 /* polaroid */
 .polaroid {
   background: #fbf8f1; padding: 10px 10px 40px; box-shadow: var(--shadow);
-  transform: rotate(-1.5deg); position: relative; margin: 0 auto; max-width: 360px; width: 100%;
+  --rot: -1.5deg; transform: rotate(var(--rot)); position: relative; margin: 0 auto; max-width: 360px; width: 100%;
 }
 .polaroid img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: #222; }
 .polaroid figcaption { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font-family: var(--f-hand); font-size: 18px; }
@@ -459,8 +457,273 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
   .suspects { grid-template-columns: repeat(3, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition: none !important; }
 }
 .tab-body { margin-top: 0; }
 .tab-body::before { display: none; }
 .link-btn.light { color: var(--paper); opacity: .85; }
+
+/* =========================================================
+   MOTION
+   Things move only when something happens. #app gets .enter when the
+   screen changes; items get [data-new] the first time they appear or
+   when they are tapped. --since (ms since that moment) is subtracted
+   from every delay, so a re-render mid-move resumes on the right frame
+   instead of replaying. Fill is "backwards" only: after an entrance the
+   element hands control back to its normal styles (hover, :active...).
+   ========================================================= */
+:root {
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --ease-back: cubic-bezier(.34, 1.56, .64, 1);
+  --ease-in: cubic-bezier(.55, 0, .85, .25);
+}
+
+/* ---------- screen entrance: sections are dealt onto the desk one by one ---------- */
+.enter .screen > * {
+  animation: deal .6s var(--ease-out) backwards;
+  animation-delay: calc(var(--base, 0ms) + var(--d, 0ms) - var(--since, 0ms));
+}
+.enter .screen > :nth-child(2) { --d: 70ms; }
+.enter .screen > :nth-child(3) { --d: 140ms; }
+.enter .screen > :nth-child(4) { --d: 210ms; }
+.enter .screen > :nth-child(5) { --d: 280ms; }
+.enter .screen > :nth-child(6) { --d: 340ms; }
+.enter .screen > :nth-child(n+7) { --d: 400ms; }
+.enter .screen > .topbar { animation-name: dropIn; --d: 0ms; animation-delay: calc(0ms - var(--since, 0ms)); }
+.enter .screen > .btn, .enter .screen > .link-btn, .enter .screen > p { animation-name: rise; }
+@keyframes deal { from { opacity: 0; transform: translateY(28px) rotate(calc(var(--rot, 0deg) + 2.5deg)); } to { transform: translateY(0) rotate(var(--rot, 0deg)); } }
+@keyframes rise { from { opacity: 0; transform: translateY(16px); } }
+@keyframes dropIn { from { opacity: 0; transform: translateY(-14px); } }
+
+/* ---------- intro: the case file lands, the title is pressed in, TOP SECRET is stamped ---------- */
+.intro { position: relative; }
+.icon-btn.corner { position: absolute; top: 16px; right: 16px; z-index: 2; }
+.enter .intro > .intro-hero { animation: fileDrop .85s var(--ease-back) backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+@keyframes fileDrop { 0% { opacity: 0; transform: translateY(-70px) rotate(-8deg) scale(1.05); } 40% { opacity: 1; } 100% { transform: rotate(var(--rot)); } }
+.enter .intro-hero .magnifier {
+  animation: magIn .7s var(--ease-back) backwards, sweep 5s ease-in-out infinite;
+  animation-delay: calc(250ms - var(--since, 0ms)), calc(950ms - var(--since, 0ms));
+}
+@keyframes magIn { from { opacity: 0; transform: scale(.3) rotate(-40deg); } }
+.enter .intro-hero .game-title { animation: pressIn .45s var(--ease-back) backwards; animation-delay: calc(380ms - var(--since, 0ms)); }
+.enter .intro-hero .game-title span { animation: pressIn .5s var(--ease-back) backwards; animation-delay: calc(540ms - var(--since, 0ms)); }
+@keyframes pressIn { from { opacity: 0; transform: scale(1.4) translateY(-8px); filter: blur(2px); } }
+.enter .intro-hero .tagline { animation: rise .5s var(--ease-out) backwards; animation-delay: calc(700ms - var(--since, 0ms)); }
+.enter .intro-hero .intro-meta div { animation: rise .45s var(--ease-out) backwards; }
+.enter .intro-hero .intro-meta div:nth-child(1) { animation-delay: calc(780ms - var(--since, 0ms)); }
+.enter .intro-hero .intro-meta div:nth-child(2) { animation-delay: calc(840ms - var(--since, 0ms)); }
+.enter .intro-hero .intro-meta div:nth-child(3) { animation-delay: calc(900ms - var(--since, 0ms)); }
+.enter .intro-hero .conf { animation: stampSlam .3s var(--ease-in) backwards; animation-delay: calc(580ms - var(--since, 0ms)); }
+/* children: 1 sound toggle, 2 hero, 3-5 buttons */
+.enter .intro > :nth-child(3) { --d: 950ms; }
+.enter .intro > :nth-child(4) { --d: 1030ms; }
+.enter .intro > :nth-child(5) { --d: 1110ms; }
+.enter .intro > .corner { animation-name: fade; --d: 1200ms; }
+
+/* rubber stamp: accelerates into the paper, overshoots on impact, settles at its -8deg rest */
+@keyframes stampSlam {
+  0% { opacity: 0; transform: scale(2.8) rotate(-20deg); }
+  80% { opacity: 1; transform: scale(.92) rotate(-7deg); }
+  100% { transform: scale(1) rotate(-8deg); }
+}
+
+/* ---------- small interaction feedback ---------- */
+@media (hover: hover) {
+  .btn:not(:disabled):hover { filter: brightness(1.07); }
+  .chip:hover, .avatar-opt:hover, .mode-card:hover { filter: brightness(1.04); }
+  .icon-btn:hover { box-shadow: inset 0 0 0 2px var(--gold), 0 3px 8px rgba(0,0,0,.5); }
+}
+.chip, .avatar-opt, .mode-card { transition: transform .12s var(--ease-out), background-color .15s, color .15s; }
+.chip:active, .mode-card:active { transform: scale(.95); }
+.avatar-opt:active { transform: scale(.92); }
+.icon-btn { transition: transform .12s var(--ease-out), box-shadow .15s; }
+.icon-btn:active { transform: scale(.9); }
+.chip[data-new] { animation: chipPop .4s var(--ease-back) backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+@keyframes chipPop { 0% { transform: scale(.82); } 60% { transform: scale(1.1); } }
+.mode-card[data-new] { animation: chipPop .4s var(--ease-back) backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+/* the chosen avatar hops and wiggles, landing on its 1.06 selected size */
+.avatar-opt[data-new] { animation: avatarPick .55s var(--ease-out) backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+@keyframes avatarPick {
+  0% { transform: scale(.8); }
+  35% { transform: scale(1.22) rotate(-10deg); }
+  60% { transform: scale(1.02) rotate(7deg); }
+  80% { transform: scale(1.09) rotate(-3deg); }
+  100% { transform: scale(1.06); }
+}
+.btn[data-new] { animation: ready .6s var(--ease-back) backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+@keyframes ready { 0% { transform: scale(.94); filter: brightness(1.4); } 60% { transform: scale(1.03); } }
+.btn-sm[data-new] { animation-name: chipPop; animation-duration: .35s; }
+
+/* ---------- lobby: each detective's card is pinned to the board ---------- */
+.enter .lobby-head .tag { animation: tagSwing .8s var(--ease-back) backwards; animation-delay: calc(120ms - var(--since, 0ms)); transform-origin: 20px 50%; }
+@keyframes tagSwing { 0% { opacity: 0; transform: translateX(-30px) rotate(-14deg); } 60% { opacity: 1; transform: rotate(4deg); } }
+.suspect[data-new] { animation: pinUp .6s var(--ease-back) backwards; animation-delay: calc(var(--i, 0) * 90ms + 180ms - var(--since, 0ms)); }
+@keyframes pinUp { from { opacity: 0; transform: translateY(-36px) rotate(calc(var(--rot) - 10deg)) scale(1.08); } 55% { opacity: 1; } to { transform: rotate(var(--rot)); } }
+.suspect[data-new] .pin { animation: pinPop .35s var(--ease-back) backwards; animation-delay: calc(var(--i, 0) * 90ms + 560ms - var(--since, 0ms)); }
+@keyframes pinPop { from { transform: scale(0); } 60% { transform: scale(1.4); } }
+.suspect.empty .mug { animation: emptyPulse 2.6s ease-in-out infinite; }
+@keyframes emptyPulse { 50% { color: #b9ad97; } }
+
+/* ---------- waiting states have a little life, never frantic ---------- */
+.waiting .big-avatar { animation: bob 2.8s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-6px) rotate(-3deg); } }
+
+/* ---------- hunt: the case file unfolds, the clue is inked in, the camera seal arrives ---------- */
+.enter .screen > .casefile { animation: unfold .75s var(--ease-back) backwards; animation-delay: calc(var(--base, 0ms) + var(--d, 0ms) - var(--since, 0ms)); transform-origin: 50% 0; }
+@keyframes unfold { from { opacity: 0; transform: perspective(900px) rotateX(-75deg) translateY(-10px) rotate(var(--rot)); } 50% { opacity: 1; } to { transform: perspective(900px) rotateX(0) rotate(var(--rot)); } }
+.enter .casefile .challenge-text .icon { animation: iconPop .55s var(--ease-back) backwards; animation-delay: calc(var(--base, 0ms) + 420ms - var(--since, 0ms)); }
+@keyframes iconPop { from { opacity: 0; transform: scale(0) rotate(-35deg); } }
+/* the clue is pressed onto the page: works for one word or a wrapped riddle alike */
+.enter .casefile .challenge-text .word { animation: pressIn .5s var(--ease-back) backwards; animation-delay: calc(var(--base, 0ms) + 560ms - var(--since, 0ms)); }
+.enter .casefile .challenge-text .riddle,
+.enter .casefile .challenge-text .answer { animation: inkUp .6s var(--ease-out) backwards; animation-delay: calc(var(--base, 0ms) + 560ms - var(--since, 0ms)); }
+.enter .casefile .challenge-text .answer { animation-delay: calc(var(--base, 0ms) + 760ms - var(--since, 0ms)); }
+@keyframes inkUp { from { opacity: 0; transform: translateY(8px); filter: blur(3px); } }
+.enter .camera-seal {
+  animation: sealIn .6s var(--ease-back) backwards, breathe 2.4s ease-in-out infinite;
+  animation-delay: calc(var(--base, 0ms) + 750ms - var(--since, 0ms)), 0s;
+}
+@keyframes sealIn { from { opacity: 0; transform: scale(.4) rotate(-25deg); } }
+.camera-seal { transition: transform .12s var(--ease-out); }
+.camera-seal:active { transform: scale(.93); }
+.timer, .bar { transition: color .3s; }
+.timer-wrap:has(.timer.low) .bar > i { animation: barFlash 1s ease-in-out infinite; }
+@keyframes barFlash { 50% { filter: brightness(1.5); } }
+
+/* your photo: developed like an instant photo, then sent off the table */
+.polaroid.develop[data-new] { animation: toss .6s var(--ease-back) backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+.polaroid.develop[data-new] img { animation: develop 2.4s ease-out backwards; animation-delay: calc(150ms - var(--since, 0ms)); }
+@keyframes develop {
+  0% { filter: sepia(.7) brightness(2.3) contrast(.3) saturate(.1) blur(2px); }
+  45% { filter: sepia(.4) brightness(1.4) contrast(.7) saturate(.5) blur(.5px); }
+  100% { filter: none; }
+}
+.polaroid.develop[data-new] figcaption { animation: fade .6s ease backwards; animation-delay: calc(1300ms - var(--since, 0ms)); }
+.polaroid.sending { animation: sendOff .65s var(--ease-in) forwards !important; }
+@keyframes sendOff {
+  0% { transform: rotate(var(--rot)); }
+  22% { transform: translateY(10px) scale(.97) rotate(calc(var(--rot) - 1deg)); }
+  100% { opacity: 0; transform: translateY(-160px) scale(.78) rotate(9deg); }
+}
+.polaroid.sent { animation: none !important; opacity: 0; }
+.stamp[data-new] { animation: stampSlam .3s var(--ease-in) backwards; animation-delay: calc(120ms - var(--since, 0ms)); }
+.verdict[data-new] { animation: wobble .6s ease backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+.verdict.no[data-new] { animation-name: headShake; }
+@keyframes wobble { 0% { opacity: 0; transform: scale(.9); } 30% { opacity: 1; transform: rotate(-3deg); } 55% { transform: rotate(2deg); } 80% { transform: rotate(-1deg); } }
+@keyframes headShake { 0% { opacity: 0; } 15% { opacity: 1; transform: translateX(-9px); } 35% { transform: translateX(7px); } 55% { transform: translateX(-5px); } 75% { transform: translateX(3px); } }
+
+/* evidence record: new rows slide in and flash like a highlighter */
+.log tr[data-new] td { animation: rowIn .5s var(--ease-out) backwards, highlight 1.4s ease-out backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+@keyframes rowIn { from { opacity: 0; transform: translateX(-14px); } }
+@keyframes highlight { from { background: rgba(255,229,138,.9); } to { background: transparent; } }
+.badge[data-new] { display: inline-block; animation: chipPop .4s var(--ease-back) backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+
+/* ---------- emoji check: a photo is tossed onto the table, votes pop ---------- */
+.screen > .polaroid[data-new] { animation: toss .75s var(--ease-back) backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+@keyframes toss { 0% { opacity: 0; transform: translateY(-90px) rotate(calc(var(--rot) - 14deg)) scale(1.12); } 45% { opacity: 1; } 100% { transform: rotate(var(--rot)); } }
+.polaroid[data-new] .tape { animation: tapeOn .3s var(--ease-out) backwards; animation-delay: calc(480ms - var(--since, 0ms)); transform-origin: 0 50%; }
+@keyframes tapeOn { from { transform: rotate(3deg) scaleX(0); } }
+.review-banner .who[data-new] { animation: pressIn .45s var(--ease-back) backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+/* squash and stretch, landing on the 1.08 pressed size, with a ring that bursts outwards */
+.emoji-btn[data-new] { animation: squash .45s var(--ease-out) backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+@keyframes squash {
+  0% { transform: scale(.82, .82); }
+  35% { transform: scale(1.22, .94); }
+  60% { transform: scale(.98, 1.14); }
+  100% { transform: scale(1.08); }
+}
+.emoji-btn[data-new]::after {
+  content: ''; position: absolute; inset: -5px; border-radius: 15px; border: 3px solid var(--gold); pointer-events: none;
+  animation: ring .5s ease-out forwards; animation-delay: calc(0ms - var(--since, 0ms));
+}
+@keyframes ring { from { opacity: 1; transform: scale(.85); } to { opacity: 0; transform: scale(1.45); } }
+.vote-pill[data-new] { animation: chipPop .4s var(--ease-back) backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+
+/* ---------- round result: the stamp lands (~600ms), the card takes the hit, the winner hops in ---------- */
+.enter .result-card {
+  animation: deal .55s var(--ease-out) backwards, thump .4s ease-out;
+  animation-delay: calc(var(--d, 0ms) - var(--since, 0ms)), calc(600ms - var(--since, 0ms));
+}
+@keyframes thump {
+  0% { transform: rotate(var(--rot, 0deg)) translateY(0); }
+  20% { transform: rotate(calc(var(--rot, 0deg) - .6deg)) translate(-3px, 4px); }
+  45% { transform: rotate(calc(var(--rot, 0deg) + .4deg)) translate(2px, -1px); }
+  70% { transform: rotate(var(--rot, 0deg)) translate(-1px, 1px); }
+}
+.enter .result-card .stamp.big { animation: stampSlam .32s var(--ease-in) backwards; animation-delay: calc(330ms - var(--since, 0ms)); }
+.enter .result-card .big-avatar { animation: hop .7s var(--ease-out) backwards; animation-delay: calc(720ms - var(--since, 0ms)); transform-origin: 50% 100%; }
+@keyframes hop {
+  0% { opacity: 0; transform: translateY(40px) scale(.4); }
+  45% { opacity: 1; transform: translateY(-16px) scale(1.06, 1.12); }
+  70% { transform: translateY(0) scale(1.14, .86); }
+  85% { transform: translateY(-3px) scale(.97, 1.04); }
+}
+.enter .result-card .winner-line { animation: rise .5s var(--ease-out) backwards; animation-delay: calc(860ms - var(--since, 0ms)); }
+.plus-one { font-size: 24px; margin: 4px 0; color: var(--red); display: inline-block; }
+.enter .result-card .plus-one { animation: plusOne .7s var(--ease-back) backwards; animation-delay: calc(1020ms - var(--since, 0ms)); }
+@keyframes plusOne { 0% { opacity: 0; transform: translateY(14px) scale(.5) rotate(-8deg); } 60% { opacity: 1; transform: translateY(-4px) scale(1.15) rotate(3deg); } }
+.enter .screen > .polaroid { animation-name: toss; }
+/* points tick over on the case board */
+.pts[data-new] { animation: bump .6s var(--ease-back) backwards; animation-delay: calc(1050ms - var(--since, 0ms)); }
+@keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.7); color: var(--red); text-shadow: 0 0 10px rgba(224,164,58,.9); } }
+
+/* ---------- final: podium builds 3rd, 2nd, drumroll, 1st, then the verdict ---------- */
+.final .podium .block { transform-origin: 50% 100%; }
+.enter.enter .final .podium { animation: none; }
+.enter .final .podium .p3 .block { animation: build .5s var(--ease-back) backwards; animation-delay: calc(450ms - var(--since, 0ms)); }
+.enter .final .podium .p2 .block { animation: build .5s var(--ease-back) backwards; animation-delay: calc(950ms - var(--since, 0ms)); }
+.enter .final .podium .p1 .block { animation: build .7s var(--ease-back) backwards; animation-delay: calc(2500ms - var(--since, 0ms)); }
+@keyframes build { from { transform: scaleY(0); } }
+.enter .final .podium .av, .enter .final .podium .nm { animation: hop .6s var(--ease-out) backwards; display: block; transform-origin: 50% 100%; }
+.enter .final .podium .p3 .av, .enter .final .podium .p3 .nm { animation-delay: calc(800ms - var(--since, 0ms)); }
+.enter .final .podium .p2 .av, .enter .final .podium .p2 .nm { animation-delay: calc(1300ms - var(--since, 0ms)); }
+.enter .final .podium .p1 .av, .enter .final .podium .p1 .nm { animation-delay: calc(2850ms - var(--since, 0ms)); }
+.enter .final .result-card { animation: deal .55s var(--ease-out) backwards, thump .4s ease-out; animation-delay: calc(0ms - var(--since, 0ms)), calc(2650ms - var(--since, 0ms)); }
+.enter .final .result-card .stamp.big { animation-delay: calc(2380ms - var(--since, 0ms)); }
+.enter .final .result-card .big-avatar { animation-delay: calc(2750ms - var(--since, 0ms)); }
+.enter .final .result-card .winner-line { animation-delay: calc(2900ms - var(--since, 0ms)); }
+.enter .final .result-card p { animation: fade .5s ease backwards; animation-delay: calc(3050ms - var(--since, 0ms)); }
+.enter .final .podium .p1 .av { animation-name: hop, glow; animation-duration: .6s, 2s; animation-iteration-count: 1, 1; }
+@keyframes glow { 50% { filter: drop-shadow(0 0 14px rgba(241,195,91,.95)); } }
+
+/* ---------- modal: the sheet slides up out of the folder ---------- */
+.modal-back { animation: fade .2s ease backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+.modal-back .modal { animation: sheetUp .45s var(--ease-back) backwards; animation-delay: calc(0ms - var(--since, 0ms)); }
+@keyframes sheetUp { from { opacity: 0; transform: translateY(50px) rotate(-3deg); } }
+.modal-back.closing { animation: fadeOut .18s ease forwards; }
+.modal-back.closing .modal { animation: sheetDown .18s var(--ease-in) forwards; }
+@keyframes fadeOut { to { opacity: 0; } }
+@keyframes sheetDown { to { opacity: 0; transform: translateY(30px) rotate(2deg); } }
+
+/* ---------- overlays from fx.js ---------- */
+.fx-flash { position: fixed; inset: 0; z-index: 66; background: #fffdf6; pointer-events: none; animation: camFlash .45s ease-out forwards; }
+@keyframes camFlash { from { opacity: .95; } to { opacity: 0; } }
+.fx-confetti { position: fixed; inset: 0; z-index: 57; pointer-events: none; width: 100%; height: 100%; }
+.fx-slate {
+  position: fixed; inset: 0; z-index: 58; display: grid; place-items: center; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(20,16,13,.6), rgba(8,5,3,.9));
+  animation: slateBg 1.5s ease forwards;
+}
+.slate-card {
+  background: var(--noise), linear-gradient(175deg, #d6b47a, var(--kraft) 50%, var(--kraft-2));
+  padding: 22px 36px 20px; text-align: center; border-radius: 4px; box-shadow: var(--shadow);
+  animation: slateCard 1.5s var(--ease-out) forwards;
+}
+.slate-title { font-family: var(--f-stencil); font-size: clamp(34px, 10vw, 54px); color: var(--ink); line-height: 1; }
+.slate-sub { font-family: var(--f-hand); font-size: 22px; color: var(--red); margin-top: 8px; }
+@keyframes slateBg { 0% { opacity: 0; } 12%, 76% { opacity: 1; } 100% { opacity: 0; } }
+/* slides in from the left, overshoots, holds long enough to read, leaves to the right */
+@keyframes slateCard {
+  0% { transform: translateX(-110vw) rotate(-14deg); }
+  24% { transform: translateX(2.5vw) rotate(-.5deg); }
+  32% { transform: translateX(0) rotate(-2deg); }
+  74% { transform: translateX(0) rotate(-2deg); animation-timing-function: var(--ease-in); }
+  100% { transform: translateX(110vw) rotate(10deg); }
+}
+.flash { backdrop-filter: blur(2px); }
+.flash.out { animation: fadeOut .2s ease forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-slate, .slate-card { animation: fade .2s ease both !important; }
+  .polaroid.sending { opacity: 0; }
+}

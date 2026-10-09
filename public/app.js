@@ -27,7 +27,8 @@ const SS = (() => { try { return sessionStorage; } catch { return null; } })();
 const prefs = store.get('fiah.prefs', {});
 const S = {
   ws: null, online: false, room: null, you: null, photos: {}, offset: 0,
-  modal: null, lastPhase: null,
+  modal: null, modalAt: 0, lastPhase: null,
+  view: { key: null, at: 0, base: 0 }, enterBase: 0, fx: new Map(), bumps: {}, timeline: [], lastTick: null,
   ui: {
     screen: 'intro', tab: 'host',
     name: prefs.name || '', avatar: prefs.avatar || AVATARS[Math.floor(Math.random() * AVATARS.length)],
@@ -60,31 +61,35 @@ function send(msg) {
 function toast(text, err) {
   const el = document.createElement('div');
   el.className = 'toast' + (err ? ' err' : '');
+  if (err) Sound.error();
   el.textContent = text;
   $('#toasts').appendChild(el);
   setTimeout(() => el.remove(), 4200);
 }
 
-// little sound effects (WebAudio, no files)
-let actx;
-function beep(notes) {
-  try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    let t = actx.currentTime;
-    for (const [f, d] of notes) {
-      const o = actx.createOscillator(), g = actx.createGain();
-      o.type = 'triangle'; o.frequency.value = f;
-      g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.18, t + .02); g.gain.exponentialRampToValueAtTime(.0001, t + d);
-      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + d + .02); t += d * .85;
-    }
-  } catch {}
+// sound & motion live in fx.js
+const { Sound, FX } = window;
+
+// ---------- motion bookkeeping ----------
+// render() rebuilds the page on every update, so animations are keyed:
+// an element animates the first time its key is seen, and --since lets a
+// re-render mid-animation resume at the right frame instead of replaying.
+const NEW_WINDOW = 1800;
+function fxa(key, i = 0) {
+  if (!S.fx.has(key)) S.fx.set(key, Date.now());
+  const e = Date.now() - S.fx.get(key);
+  return e < NEW_WINDOW ? ` data-new style="--since:${e}ms;--i:${i}"` : '';
 }
-const SFX = {
-  start: () => beep([[392, .12], [523, .12], [659, .2]]),
-  upload: () => beep([[880, .08], [660, .08], [880, .14]]),
-  win: () => beep([[523, .12], [659, .12], [784, .12], [1047, .3]]),
-  no: () => beep([[300, .18], [220, .25]]),
-};
+// same, but only for keys marked by an interaction (a tap), never on first sight
+function pop(key) {
+  const t = S.fx.get(key);
+  const e = t ? Date.now() - t : Infinity;
+  return e < NEW_WINDOW ? ` data-new style="--since:${e}ms"` : '';
+}
+const mark = key => S.fx.set(key, Date.now());
+function later(ms, fn) { S.timeline.push(setTimeout(fn, ms)); }
+function clearTimeline() { S.timeline.forEach(clearTimeout); S.timeline = []; }
+
 const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
 
 // invite links must work on other devices, so swap localhost for the Wi-Fi address
@@ -119,23 +124,46 @@ function onMessage(m) {
       S.room = m.room; S.you = m.you;
       S.offset = m.room.serverNow - Date.now();
       if (SS) store.set('fiah.session', { code: m.room.code, pid: m.you }, SS);
+      react(prev, m.room);
       phaseChange(prev, m.room);
       render();
       break;
     }
     case 'photo': S.photos[m.id] = m.data; render(); break;
-    case 'uploaded': S.ui.capture = null; S.ui.busy = false; SFX.upload(); render(); break;
+    case 'uploaded': S.ui.capture = null; S.ui.busy = false; Sound.sent(); render(); break;
     case 'firstUpload': {
       const p = player(m.pid);
       const first = S.room && S.room.uploads.filter(u => u.status !== 'pending').length === 0;
       flash(`${first ? 'First upload' : 'Next upload'}: ${p ? p.name : '?'}`);
-      SFX.upload(); buzz([80, 40, 80]);
+      Sound.alert(); later(260, Sound.stamp); buzz([80, 40, 80]);
       break;
     }
     case 'toast': toast(m.text); break;
     case 'error': toast(m.text, true); S.ui.busy = false; render(); break;
-    case 'resumeFailed': if (SS) store.del('fiah.session', SS); S.room = null; render(); break;
-    case 'left': if (SS) store.del('fiah.session', SS); S.room = null; S.photos = {}; S.ui.screen = 'home'; render(); break;
+    case 'resumeFailed': if (SS) store.del('fiah.session', SS); S.room = null; S.fx.clear(); render(); break;
+    case 'left': if (SS) store.del('fiah.session', SS); S.room = null; S.photos = {}; S.fx.clear(); clearTimeline(); S.ui.screen = 'home'; render(); break;
+  }
+}
+
+// small reactions to what other players just did
+function react(prev, cur) {
+  if (!prev || prev.code !== cur.code) return;
+  if (cur.phase === 'lobby' && cur.players.length > prev.players.length) Sound.pin();
+  if (cur.phase === 'hunt' && cur.reviewing && cur.reviewing !== prev.reviewing) Sound.paper();
+  if (cur.reviewing && cur.reviewing === prev.reviewing) {
+    const a = prev.uploads.find(u => u.id === cur.reviewing), b = cur.uploads.find(u => u.id === cur.reviewing);
+    const iJustVoted = b && b.votes[S.you] && (!a || a.votes[S.you] !== b.votes[S.you]);
+    if (a && b && !iJustVoted && Object.keys(b.votes).length > Object.keys(a.votes).length) Sound.blip();
+  }
+  // a verdict on my own photo
+  for (const u of cur.uploads) {
+    if (u.pid !== S.you || u.status === 'pending' || u.status === 'approved') continue;
+    const o = prev.uploads.find(x => x.id === u.id);
+    if (o && o.status === 'pending') { Sound.stamp(); buzz([60, 40, 60]); }
+  }
+  for (const p of cur.players) {
+    const o = prev.players.find(x => x.id === p.id);
+    if (o && p.score > o.score) S.bumps[p.id] = Date.now();
   }
 }
 
@@ -143,14 +171,41 @@ function phaseChange(prev, cur) {
   const key = `${cur.phase}:${cur.round}`;
   if (key === S.lastPhase) return;
   S.lastPhase = key;
+  clearTimeline();
   if (cur.phase === 'hunt' || cur.phase === 'choose') { S.ui.capture = null; S.ui.busy = false; S.ui.typeText = ''; }
-  if (cur.phase === 'hunt' && (!prev || prev.phase !== 'hunt')) { SFX.start(); buzz(120); }
+  if (cur.phase === 'hunt' && (!prev || prev.phase !== 'hunt')) {
+    // title card first, then the case file is dealt in underneath it
+    const c = cur.challenge;
+    FX.slate(esc(cur.tiebreak ? 'Tiebreaker' : `Case ${cur.round} of ${cur.totalRounds}`), c ? esc(c.typedBy ? 'Home item' : c.levelName) : '');
+    S.enterBase = FX.reduced() ? 0 : 1050;
+    Sound.start(); buzz(120);
+    later(1050, Sound.paper);
+  }
+  if (cur.phase === 'choose' || (cur.phase === 'lobby' && prev && prev.phase !== 'lobby')) Sound.paper();
+  if (cur.phase === 'result' || cur.phase === 'final') FX.clearOverlays();
   if (cur.phase === 'result') {
-    if (cur.lastResult && cur.lastResult.winnerId) SFX.win(); else SFX.no();
-    if (cur.lastResult && cur.lastResult.winnerId === S.you) buzz([100, 50, 100, 50, 200]);
+    // timed to the stamp hitting the paper in the CSS (~600ms)
+    const res = cur.lastResult || {};
+    if (res.winnerId) {
+      later(600, () => { Sound.stamp(); FX.confetti({ count: res.winnerId === S.you ? 170 : 70, origin: [.5, .28] }); });
+      later(780, Sound.win);
+      later(1050, Sound.point);
+      if (res.winnerId === S.you) buzz([100, 50, 100, 50, 200]);
+    } else {
+      later(600, Sound.stamp);
+      later(820, Sound.lose);
+    }
+  }
+  if (cur.phase === 'final') {
+    // podium: 3rd and 2nd thud into place, drumroll, then the winner lands with the stamp
+    later(500, Sound.thud);
+    later(1000, Sound.thud);
+    later(1150, () => Sound.drumroll(1.5));
+    later(2650, () => { Sound.stamp(); Sound.fanfare(); FX.confetti({ count: 220, origin: [.5, .32], power: 1.15 }); });
+    later(2700, () => buzz([100, 50, 100, 50, 260]));
   }
   if (cur.phase === 'lobby') { S.photos = {}; }
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top: 0, behavior: FX.reduced() ? 'auto' : 'smooth' });
 }
 
 function flash(text) {
@@ -173,6 +228,8 @@ cam.addEventListener('change', async () => {
   try {
     S.ui.capture = await compress(f);
     S.ui.takenAt = f.lastModified || Date.now();
+    S.ui.capId = (S.ui.capId || 0) + 1;
+    Sound.shutter(); FX.flash(); buzz(40);
     render();
   } catch (e) { toast('Could not read that photo. Try again.', true); }
 });
@@ -211,13 +268,19 @@ function topbar(extra = '') {
     <div class="brand">🔎 Find It at Home!</div>
     ${chip}${extra}
     ${r && r.phase !== 'lobby' ? `<button class="icon-btn" data-act="scores" aria-label="Open scoreboard" title="Scoreboard">🏆</button>` : ''}
+    ${soundBtn()}
     <button class="icon-btn" data-act="rules" aria-label="How to play" title="How to play">?</button>
   </header>`;
 }
 
+function soundBtn(cls = '') {
+  const off = Sound.muted();
+  return `<button class="icon-btn ${cls}" data-act="sound" aria-pressed="${!off}" aria-label="${off ? 'Turn sound on' : 'Turn sound off'}" title="${off ? 'Sound off' : 'Sound on'}">${off ? '🔇' : '🔊'}</button>`;
+}
+
 function chips(name, options, value) {
   return `<div class="chips" role="group">${options.map(([v, label]) =>
-    `<button class="chip" data-act="set" data-k="${name}" data-v="${v}" aria-pressed="${String(v) === String(value)}">${label}</button>`).join('')}</div>`;
+    `<button class="chip" data-act="set" data-k="${name}" data-v="${v}" aria-pressed="${String(v) === String(value)}"${String(v) === String(value) ? pop(`chip:${name}:${v}`) : ''}>${label}</button>`).join('')}</div>`;
 }
 
 function rankList(players) {
@@ -238,7 +301,7 @@ function scoreboard() {
     return `<tr class="${p.id === S.you ? 'me' : ''}">
       <td class="rank">${ordinal(p.rank)}</td>
       <td><div class="pl"><span class="av">${p.avatar}</span><span class="nm">${esc(p.name)}</span>${p.connected ? '' : ' <small class="muted">(away)</small>'}</div></td>
-      <td class="pts">${p.score}</td>
+      <td class="pts"${Date.now() - (S.bumps[p.id] || 0) < NEW_WINDOW ? ` data-new style="--since:${Date.now() - S.bumps[p.id]}ms"` : ''}>${p.score}</td>
       <td class="tally" aria-label="${p.won} rounds won">${p.won ? '|'.repeat(p.won) : '–'}</td>
       <td>${last ? `<small>#${pos} · ${clock(last.at)}</small><br><span class="badge ${last.status}">${STATUS_TEXT[last.status]}</span>` : '<small class="muted">-</small>'}</td>
     </tr>`;
@@ -273,6 +336,7 @@ function challengeCard(withStamp = '') {
 // ---------- screens ----------
 function viewIntro() {
   return `<div class="screen intro">
+    ${soundBtn('corner')}
     <section class="paper tilt-l intro-hero">
       <span class="file-no">CASE FILE #001</span>
       <span class="stamp conf">Top secret</span>
@@ -297,13 +361,13 @@ function viewHome() {
     <div class="field"><label class="label" for="nm">Detective name</label>
       <input class="input" id="nm" data-model="name" maxlength="16" autocomplete="nickname" placeholder="Enter your name" value="${esc(u.name)}"></div>
     <div class="field"><div class="label">Pick your avatar</div>
-      <div class="avatars">${AVATARS.map(a => `<button class="avatar-opt" data-act="avatar" data-v="${a}" aria-pressed="${a === u.avatar}" aria-label="Avatar ${a}">${a}</button>`).join('')}</div></div>`;
+      <div class="avatars">${AVATARS.map(a => `<button class="avatar-opt" data-act="avatar" data-v="${a}" aria-pressed="${a === u.avatar}" aria-label="Avatar ${a}"${a === u.avatar ? pop('av:' + a) : ''}>${a}</button>`).join('')}</div></div>`;
   const hostForm = `
     <div class="field"><div class="label">1 · How many players?</div>${chips('seats', [2, 3, 4, 5, 6].map(n => [n, n]), s.seats)}</div>
     <div class="field"><div class="label">2 · Game mode</div>
       <div class="modes">
-        <button class="mode-card" data-act="set" data-k="mode" data-v="random" aria-pressed="${s.mode === 'random'}"><b>🎲 Random</b><small>The computer picks the clue. Everyone gets the same challenge.</small><div class="ex">e.g. SPOON</div></button>
-        <button class="mode-card" data-act="set" data-k="mode" data-v="type" aria-pressed="${s.mode === 'type'}"><b>⌨️ Type a Home Item</b><small>Players take turns typing an item. Everyone races, even the typer!</small><div class="ex">e.g. WATER BOTTLE</div></button>
+        <button class="mode-card" data-act="set" data-k="mode" data-v="random" aria-pressed="${s.mode === 'random'}"${s.mode === 'random' ? pop('chip:mode:random') : ''}><b>🎲 Random</b><small>The computer picks the clue. Everyone gets the same challenge.</small><div class="ex">e.g. SPOON</div></button>
+        <button class="mode-card" data-act="set" data-k="mode" data-v="type" aria-pressed="${s.mode === 'type'}"${s.mode === 'type' ? pop('chip:mode:type') : ''}><b>⌨️ Type a Home Item</b><small>Players take turns typing an item. Everyone races, even the typer!</small><div class="ex">e.g. WATER BOTTLE</div></button>
       </div></div>
     ${s.mode === 'random' ? `<div class="field"><div class="label">3 · Level</div>${chips('level', Object.entries(LEVELS), s.level)}</div>` : ''}
     <div class="field"><div class="label">Rounds</div>${chips('rounds', [[3, 3], [5, 5], [7, 7], [10, 10]], s.rounds)}</div>
@@ -314,7 +378,7 @@ function viewHome() {
       <input class="input code" id="cd" data-model="code" maxlength="4" autocapitalize="characters" autocomplete="off" placeholder="ABCD" value="${esc(u.code)}"></div>
     <button class="btn btn-red" data-act="join" ${S.online && !u.busy ? '' : 'disabled'}>Join the case</button>`;
   return `<div class="screen">
-    <header class="topbar"><button class="icon-btn" data-act="back" aria-label="Back">←</button><div class="brand">🔎 Find It at Home!</div><button class="icon-btn" data-act="rules" aria-label="How to play">?</button></header>
+    <header class="topbar"><button class="icon-btn" data-act="back" aria-label="Back">←</button><div class="brand">🔎 Find It at Home!</div>${soundBtn()}<button class="icon-btn" data-act="rules" aria-label="How to play">?</button></header>
     <div>
       <div class="tabs"><button aria-selected="true" tabindex="-1">${host ? 'Open a new case' : 'Join a case'}</button></div>
       <section class="folder tab-body"><div class="paper">${common}${host ? hostForm : joinForm}</div></section>
@@ -328,7 +392,7 @@ function viewLobby() {
   for (let i = 0; i < Math.max(r.seats, r.players.length); i++) {
     const p = r.players[i];
     slots.push(p
-      ? `<div class="suspect ${p.connected ? '' : 'offline'}"><span class="pin"></span><div class="mug">${p.avatar}</div><div class="name">${esc(p.name)}</div><div class="role">${p.id === r.hostId ? 'HOST' : p.id === S.you ? 'YOU' : 'DETECTIVE'}</div></div>`
+      ? `<div class="suspect ${p.connected ? '' : 'offline'}"${fxa('p:' + p.id, i)}><span class="pin"></span><div class="mug">${p.avatar}</div><div class="name">${esc(p.name)}</div><div class="role">${p.id === r.hostId ? 'HOST' : p.id === S.you ? 'YOU' : 'DETECTIVE'}</div></div>`
       : `<div class="suspect empty"><div class="mug">?</div><div class="name">Missing</div><div class="role">waiting…</div></div>`);
   }
   const n = r.players.length;
@@ -336,7 +400,7 @@ function viewLobby() {
     ${topbar()}
     <div class="lobby-head">
       <span class="tag">CASE ${esc(r.code)}</span>
-      <button class="btn btn-dark btn-sm" data-act="copy" data-v="${esc(url)}">Copy invite link</button>
+      <button class="btn btn-dark btn-sm" data-act="copy" data-v="${esc(url)}"${pop('copy')}>${Date.now() - (S.fx.get('copy') || 0) < 1600 ? 'Copied ✓' : 'Copy invite link'}</button>
     </div>
     <p class="join-url">Everyone opens <b>${esc(base.replace(/^https?:\/\//, ''))}</b> → <b>Join a case</b> → code <b>${esc(r.code)}</b><br>or goes to ${esc(url)}</p>
     <section class="folder" data-tab="Detectives · ${n}/${r.seats}">
@@ -353,7 +417,7 @@ function viewLobby() {
       ${isHost() ? `<div class="field" style="margin-top:14px"><div class="label">Players expected</div>${chips('lobbySeats', [2, 3, 4, 5, 6].filter(x => x >= n).map(x => [x, x]), r.seats)}</div>` : ''}
     </section>
     ${isHost()
-      ? `<button class="btn btn-red" data-act="start" ${n >= 2 ? '' : 'disabled'}>${n >= 2 ? `Start the hunt (${n}/${r.seats})` : 'Need at least 2 players'}</button>`
+      ? `<button class="btn btn-red" data-act="start" ${n >= 2 ? fxa('ready:' + r.code) : 'disabled'}>${n >= 2 ? `Start the hunt (${n}/${r.seats})` : 'Need at least 2 players'}</button>`
       : `<div class="paper center"><span class="spinner-glass" aria-hidden="true">🔎</span><p>Waiting for the host to start<span class="dots"></span></p></div>`}
     <button class="link-btn light" data-act="leave">Leave this case</button>
   </div>`;
@@ -400,7 +464,7 @@ function evidenceLog() {
   if (!r.uploads.length) return '';
   const rows = [...r.uploads].sort((a, b) => a.at - b.at).map((u, i) => {
     const p = player(u.pid);
-    return `<tr class="${u.id === r.reviewing ? 'hl' : ''}"><td>#${i + 1}</td><td>${clock(u.at)}</td><td>${p ? p.avatar + ' ' + esc(p.name) : '?'}</td><td><span class="badge ${u.status}">${STATUS_TEXT[u.status]}</span></td></tr>`;
+    return `<tr class="${u.id === r.reviewing ? 'hl' : ''}"${fxa('log:' + u.id)}><td>#${i + 1}</td><td>${clock(u.at)}</td><td>${p ? p.avatar + ' ' + esc(p.name) : '?'}</td><td><span class="badge ${u.status}"${fxa(`st:${u.id}:${u.status}`)}>${STATUS_TEXT[u.status]}</span></td></tr>`;
   }).join('');
   return `<section class="paper tilt-r">
     <div class="label">Evidence record</div>
@@ -416,11 +480,11 @@ function captureBlock() {
     return `<section class="paper center"><h2 class="section">You're the judge ⚖️</h2><p class="muted">Only the tied players hunt in the tiebreaker. You'll check their photos.</p></section>`;
   }
   if (pending) {
-    return `<section class="paper center tilt-r"><span class="stamp">Evidence submitted</span><p>Your photo is in the queue. Hold tight while it gets checked<span class="dots"></span></p></section>`;
+    return `<section class="paper center tilt-r"><span class="stamp"${fxa('sub:' + pending.id)}>Evidence submitted</span><p>Your photo is in the queue. Hold tight while it gets checked<span class="dots"></span></p></section>`;
   }
   if (S.ui.capture) {
     return `<section class="stack">
-      <figure class="polaroid" style="margin:0 auto"><span class="tape"></span><img src="${S.ui.capture}" alt="Your photo preview"><figcaption>Is it clear?</figcaption></figure>
+      <figure class="polaroid develop${S.ui.busy ? ' sent' : ''}"${fxa('cap:' + S.ui.capId)}><span class="tape"></span><img src="${S.ui.capture}" alt="Your photo preview"><figcaption>Is it clear?</figcaption></figure>
       <div class="btn-row">
         <button class="btn btn-paper" data-act="retake">🔄 Retake</button>
         <button class="btn btn-red" data-act="upload" ${S.ui.busy ? 'disabled' : ''}>${S.ui.busy ? 'Uploading…' : 'Save & Upload'}</button>
@@ -428,8 +492,8 @@ function captureBlock() {
     </section>`;
   }
   const last = mine[mine.length - 1];
-  const note = last && last.status === 'retake' ? `<p class="center light">🔄 The others asked for a clearer photo. Try again!</p>`
-    : last && last.status === 'rejected' ? `<p class="center light">❌ That one didn't match. Keep looking!</p>` : '';
+  const note = last && last.status === 'retake' ? `<p class="center light verdict"${fxa('v:' + last.id + ':retake')}>🔄 The others asked for a clearer photo. Try again!</p>`
+    : last && last.status === 'rejected' ? `<p class="center light verdict no"${fxa('v:' + last.id + ':rejected')}>❌ That one didn't match. Keep looking!</p>` : '';
   return `<section class="stack">
     ${note}
     <button class="camera-seal" data-act="camera" aria-label="Take a photo">${cameraSVG}TAKE PHOTO</button>
@@ -446,17 +510,17 @@ function reviewBlock() {
   const voters = r.players.filter(p => p.connected && p.id !== u.pid);
   const myVote = u.votes[S.you];
   const group = (title, list) => `<div><div class="emoji-group-title label">${title}</div><div class="emoji-row">${list.map(([e, l]) =>
-    `<button class="emoji-btn" data-act="vote" data-v="${e}" aria-pressed="${myVote === e}" aria-label="${l}">${e}<small>${l}</small></button>`).join('')}</div></div>`;
+    `<button class="emoji-btn" data-act="vote" data-v="${e}" aria-pressed="${myVote === e}" aria-label="${l}"${myVote === e ? pop(`vote:${u.id}:${e}`) : ''}>${e}<small>${l}</small></button>`).join('')}</div></div>`;
   const pills = voters.map(v => {
     const e = u.votes[v.id];
-    return `<span class="vote-pill"><span class="av">${v.avatar}</span>${esc(v.name)} ${e ? (e === '🤔' ? '🤔' : '✔︎') : '…'}</span>`;
+    return `<span class="vote-pill"${fxa(`vp:${u.id}:${v.id}:${e ? 1 : 0}`)}><span class="av">${v.avatar}</span>${esc(v.name)} ${e ? (e === '🤔' ? '🤔' : '✔︎') : '…'}</span>`;
   }).join('');
   return `
     <div class="review-banner">
       <div class="label light" style="color:var(--kraft)">${order === 0 ? 'First upload!' : `Upload #${order + 1}`} · ${clock(u.at)}</div>
-      <div class="who">${up ? up.avatar + ' ' + esc(up.name) : '?'}</div>
+      <div class="who"${fxa('who:' + u.id)}>${up ? up.avatar + ' ' + esc(up.name) : '?'}</div>
     </div>
-    <figure class="polaroid"><span class="tape"></span>
+    <figure class="polaroid"${fxa('rev:' + u.id)}><span class="tape"></span>
       ${S.photos[u.id] ? `<img src="${S.photos[u.id]}" alt="Photo uploaded by ${esc(up ? up.name : '')}">` : `<div style="aspect-ratio:1;display:grid;place-items:center;background:#222;color:#aaa">Loading photo…</div>`}
       <figcaption>Evidence #${order + 1}</figcaption>
     </figure>
@@ -515,11 +579,11 @@ function viewResult() {
   return `<div class="screen">
     ${topbar()}
     <section class="paper result-card tilt-l">
-      ${w ? `<span class="stamp big green stamp-in">Solved!</span>
+      ${w ? `<span class="stamp big green">Solved!</span>
              <div class="big-avatar">${w.avatar}</div>
              <div class="winner-line">${esc(w.name)} ${w.id === S.you ? '(you!)' : ''}</div>
-             <p class="hand" style="font-size:22px;margin:4px 0;color:var(--red)">+1 point</p>`
-          : `<span class="stamp big stamp-in">Unsolved</span><p>No approved photo this round. Nobody scores.</p>`}
+             <p class="hand plus-one">+1 point</p>`
+          : `<span class="stamp big">Unsolved</span><p>No approved photo this round. Nobody scores.</p>`}
       ${r.challenge ? `<p class="muted" style="margin-bottom:0">Case: “${esc(r.challenge.text)}”${r.challenge.level !== 1 ? `: <b>${esc(r.challenge.answer)}</b>` : ''}</p>` : ''}
     </section>
     ${photo ? `<figure class="polaroid"><span class="tape"></span><img src="${photo}" alt="Winning photo"><figcaption>Winning evidence</figcaption></figure>` : ''}
@@ -535,11 +599,11 @@ function viewFinal() {
   const iWon = champ && champ.id === S.you;
   const pod = [ranked[1], ranked[0], ranked[2]];
   const cls = ['p2', 'p1', 'p3'], place = [2, 1, 3];
-  return `<div class="screen">
+  return `<div class="screen final">
     ${topbar()}
     <section class="paper result-card">
       <div class="label">Case closed</div>
-      ${iWon ? `<span class="stamp big green stamp-in">Victory!</span>` : `<span class="stamp big stamp-in">Good hunt!</span>`}
+      ${iWon ? `<span class="stamp big green">Victory!</span>` : `<span class="stamp big">Good hunt!</span>`}
       <div class="big-avatar">${champ ? champ.avatar : ''}</div>
       <div class="winner-line">${champ ? esc(champ.name) : ''} wins!</div>
       <p class="muted" style="margin:0">${champ ? champ.score : 0} point${champ && champ.score === 1 ? '' : 's'} · ${r.history.length} cases played</p>
@@ -605,11 +669,27 @@ function render() {
   } else {
     html = S.ui.screen === 'home' ? viewHome() : viewIntro();
   }
-  if (!S.online) html = `<div class="conn">Connecting to the game server…</div>` + html;
-  $('#app').innerHTML = html;
+  // a new screen gets one entrance; re-renders inside the window resume it via --since
+  const key = r ? `${r.code}:${r.phase}:${r.round}:${r.phase === 'hunt' && r.challenge ? r.challenge.text : ''}`
+    : (S.ui.screen === 'home' ? 'home:' + S.ui.tab : 'intro');
+  if (key !== S.view.key) {
+    S.view = { key, at: Date.now(), base: S.enterBase };
+    S.enterBase = 0;
+    if (key === 'intro') later(820, Sound.stamp);
+    else if (key.startsWith('home')) Sound.paper();
+  }
+  const since = Date.now() - S.view.at;
+  const app = $('#app');
+  app.classList.toggle('enter', since < 4500);
+  app.style.setProperty('--since', since + 'ms');
+  app.style.setProperty('--base', S.view.base + 'ms');
 
+  if (!S.online) html = `<div class="conn">Connecting to the game server…</div>` + html;
+  app.innerHTML = html;
+
+  const mSince = Date.now() - S.modalAt;
   $('#modal-root').innerHTML = S.modal
-    ? `<div class="modal-back" data-act="backdrop">${S.modal === 'rules' ? rulesModal() : (r ? scoresModal() : '')}</div>` : '';
+    ? `<div class="modal-back" data-act="backdrop" style="--since:${mSince}ms">${S.modal === 'rules' ? rulesModal() : (r ? scoresModal() : '')}</div>` : '';
 
   if (focusId) {
     const el = document.getElementById(focusId);
@@ -624,6 +704,8 @@ setInterval(() => {
   const left = r.endsAt - now(), total = r.settings.timer * 1000;
   const t = $('#timer'), b = $('#bar');
   if (t) { t.textContent = mmss(left); t.classList.toggle('low', left < 15000); }
+  const sec = Math.ceil(left / 1000);
+  if (sec >= 1 && sec <= 10 && sec !== S.lastTick) { S.lastTick = sec; Sound.tick(sec <= 5); }
   if (b) b.style.width = Math.max(0, Math.min(100, left / total * 100)) + '%';
 }, 250);
 
@@ -640,7 +722,7 @@ document.addEventListener('input', e => {
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && S.modal) { S.modal = null; render(); }
+  if (e.key === 'Escape' && S.modal) closeModal();
   if (e.key === 'Enter' && e.target.id === 'cd') act('join');
   if (e.key === 'Enter' && e.target.id === 'ti') act('typeItem');
 });
@@ -649,8 +731,20 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
   if (el.dataset.act === 'backdrop' && e.target !== el) return;
+  if (!el.disabled && !QUIET.has(el.dataset.act)) Sound.tap();
   act(el.dataset.act, el.dataset);
 });
+
+// actions that make their own sound
+const QUIET = new Set(['vote', 'camera', 'retake', 'upload', 'sound', 'copy', 'avatar', 'set', 'suggest', 'rules', 'scores']);
+
+function openModal(kind) { S.modal = kind; S.modalAt = Date.now(); Sound.paper(); }
+function closeModal() {
+  const back = $('.modal-back');
+  if (!back || FX.reduced()) { S.modal = null; render(); return; }
+  back.classList.add('closing');
+  setTimeout(() => { S.modal = null; render(); }, 180);
+}
 
 function needName() {
   if (!S.ui.name.trim()) { toast('Write your detective name first.', true); const n = $('#nm'); if (n) n.focus(); return true; }
@@ -662,12 +756,14 @@ function act(a, d = {}) {
   switch (a) {
     case 'play': u.screen = 'home'; u.tab = d.v; break;
     case 'back': u.screen = 'intro'; break;
-    case 'rules': S.modal = 'rules'; break;
-    case 'scores': S.modal = 'scores'; break;
-    case 'closeModal': case 'backdrop': S.modal = null; break;
+    case 'rules': openModal('rules'); break;
+    case 'scores': openModal('scores'); break;
+    case 'closeModal': case 'backdrop': closeModal(); return;
+    case 'sound': if (!Sound.toggle()) Sound.select(); break;
     case 'tab': u.tab = d.v; break;
-    case 'avatar': u.avatar = d.v; savePrefs(); break;
+    case 'avatar': u.avatar = d.v; mark('av:' + d.v); Sound.select(); savePrefs(); break;
     case 'set':
+      mark(`chip:${d.k}:${d.v}`); Sound.select();
       if (d.k === 'lobbySeats') { send({ t: 'settings', settings: { seats: Number(d.v) } }); return; }
       u.settings[d.k] = ['seats', 'rounds', 'timer'].includes(d.k) ? Number(d.v) : d.v;
       savePrefs(); break;
@@ -683,23 +779,33 @@ function act(a, d = {}) {
       break;
     case 'copy':
       try { navigator.clipboard.writeText(d.v).then(() => toast('Invite link copied!'), () => toast(d.v)); } catch { toast(d.v); }
-      return;
+      mark('copy'); Sound.select(); setTimeout(render, 1650);
+      break;
     case 'start': send({ t: 'start' }); return;
     case 'leave': send({ t: 'leave' }); return;
-    case 'suggest': u.typeText = d.v; break;
+    case 'suggest': u.typeText = d.v; Sound.select(); break;
     case 'typeItem':
       if (!u.typeText.trim()) { toast('Type a home item first.', true); return; }
       send({ t: 'typeItem', text: u.typeText.trim() });
       return;
     case 'camera': cam.click(); return;
     case 'retake': u.capture = null; render(); cam.click(); return;
-    case 'upload':
+    case 'upload': {
       if (!u.capture || u.busy) return;
-      if (send({ t: 'upload', photo: u.capture, takenAt: u.takenAt })) u.busy = true;
-      break;
+      if (!send({ t: 'upload', photo: u.capture, takenAt: u.takenAt })) return;
+      u.busy = true;
+      // anticipation dip, then the polaroid is sent off the table
+      const pola = $('.polaroid.develop');
+      if (pola) pola.classList.add('sending');
+      Sound.whoosh();
+      const btn = $('[data-act="upload"]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }
+      return;
+    }
     case 'skip': send({ t: 'skip' }); return;
     case 'vote': {
       const r = S.room;
+      mark(`vote:${r.reviewing}:${d.v}`); Sound.vote();
       send({ t: 'vote', uploadId: r.reviewing, emoji: d.v }); buzz(30);
       return;
     }
