@@ -6,16 +6,16 @@
 'use strict';
 
 // ---------- constants ----------
-const AVATARS = ['🦊', '🐼', '🦉', '🐯', '🐸', '🐙', '🦁', '🐨', '🐧', '🦝', '🐶', '🐱'];
-const EMOJI = {
-  positive: [['✅', 'Correct object'], ['👍', 'This matches'], ['💯', 'Perfect match'], ['🎯', 'Exact match'], ['👏', 'Approved']],
-  action:   [['❌', 'Wrong object'], ['🔄', 'Please retake'], ['🔍', 'Photo is unclear'], ['👎', 'Does not match']],
-  unsure:   [['🤔', 'Not sure']],
-};
-const ALL_LABELS = Object.fromEntries([...EMOJI.positive, ...EMOJI.action, ...EMOJI.unsure]);
-const AVATAR_NAMES = { '🦊': 'Fox', '🐼': 'Panda', '🦉': 'Owl', '🐯': 'Tiger', '🐸': 'Frog', '🐙': 'Octopus', '🦁': 'Lion', '🐨': 'Koala', '🐧': 'Penguin', '🦝': 'Raccoon', '🐶': 'Dog', '🐱': 'Cat' };
-const LEVELS = { '1': 'Word Hunt', '2': 'Riddle Hunt', '3': 'Learn & Find', mixed: 'Mixed (1→2→3)' };
-const STATUS_TEXT = { pending: 'Checking', approved: 'Approved', rejected: 'Not a match', retake: 'Retake asked' };
+// the game's only emojis: 10 reactions. The first five say yes.
+const REACTIONS = [
+  ['✅', 'Correct object'], ['👍', 'This matches'], ['💯', 'Perfect match'], ['🎯', 'Exact match'], ['👏', 'Approved'],
+  ['❌', 'Wrong object'], ['🔄', 'Please retake'], ['🔍', 'Photo is unclear'], ['👎', 'Does not match'], ['🤔', 'Not sure'],
+];
+const ALL_LABELS = Object.fromEntries(REACTIONS);
+// original animal avatars, drawn as SVG symbols in index.html
+const AVATARS = ['fox', 'cat', 'dog', 'bear', 'panda', 'owl', 'frog', 'rabbit'];
+const AVATAR_NAMES = { fox: 'Fox', cat: 'Cat', dog: 'Dog', bear: 'Bear', panda: 'Panda', owl: 'Owl', frog: 'Frog', rabbit: 'Rabbit' };
+const STATUS_TEXT = { pending: 'Waiting', approved: 'Approved', rejected: 'Not approved' };
 
 // ---------- storage (never required) ----------
 const store = {
@@ -33,9 +33,9 @@ const S = {
   view: { key: null, at: 0, base: 0 }, enterBase: 0, fx: new Map(), bumps: {}, timeline: [], lastTick: null,
   ui: {
     screen: 'intro', tab: 'host',
-    name: prefs.name || '', avatar: prefs.avatar || AVATARS[Math.floor(Math.random() * AVATARS.length)],
-    code: '', typeText: '',
-    settings: Object.assign({ seats: 4, mode: 'random', level: 'mixed', rounds: 5, timer: 120 }, prefs.settings || {}),
+    name: prefs.name || '', avatar: AVATARS.includes(prefs.avatar) ? prefs.avatar : AVATARS[Math.floor(Math.random() * AVATARS.length)],
+    code: '',
+    settings: { seats: prefs.settings && [1, 2, 3, 4, 5, 6].includes(prefs.settings.seats) ? prefs.settings.seats : 4 },
     capture: null, takenAt: null, busy: false, slow: false,
     nameError: '', codeError: '', uploadError: '',
   },
@@ -81,9 +81,9 @@ function announce(text) {
 // sound & motion live in fx.js
 const { Sound, Music, FX } = window;
 const SOUND_STATES = {
-  all: { icon: '🔊', label: 'Music and sound effects on' },
-  fx: { icon: '🔈', label: 'Music off, sound effects on' },
-  off: { icon: '🔇', label: 'All sound off' },
+  all: { label: 'Music and sound effects on' },
+  fx: { label: 'Music off, sound effects on' },
+  off: { label: 'All sound off' },
 };
 
 // ---------- motion bookkeeping ----------
@@ -106,8 +106,7 @@ const mark = key => S.fx.set(key, Date.now());
 function later(ms, fn) { S.timeline.push(setTimeout(fn, ms)); }
 // calm on menus and checks, the chase while hunting, and faster still in the last 15 seconds
 function musicMood(r) {
-  if (!r || r.phase !== 'hunt' || r.reviewing) return 'calm';
-  return r.endsAt && r.endsAt - now() < 15000 ? 'urgent' : 'hunt';
+  return r && r.phase === 'hunt' && !r.reviewing ? 'hunt' : 'calm';
 }
 function clearTimeline() { S.timeline.forEach(clearTimeout); S.timeline = []; }
 
@@ -208,17 +207,17 @@ function phaseChange(prev, cur) {
   if (key === S.lastPhase) return;
   S.lastPhase = key;
   clearTimeline();
-  if (cur.phase === 'hunt' || cur.phase === 'choose') { S.ui.capture = null; S.ui.busy = false; S.ui.typeText = ''; }
+  if (cur.phase === 'hunt') { S.ui.capture = null; S.ui.busy = false; }
   if (cur.phase === 'hunt' && (!prev || prev.phase !== 'hunt')) {
     // title card first, then the case file is dealt in underneath it
     const c = cur.challenge;
-    FX.slate(esc(cur.tiebreak ? 'Tiebreaker' : `Case ${cur.round} of ${cur.totalRounds}`), c ? esc(c.typedBy ? 'Home item' : c.levelName) : '');
+    FX.slate(esc(`Round ${cur.round} of ${cur.totalRounds}`), c ? esc(c.levelName) : '');
     S.enterBase = FX.reduced() ? 0 : 1050;
     Sound.start(); buzz(120); Music.duck(1600);
-    if (c) announce(`${cur.tiebreak ? 'Tiebreaker' : `Round ${cur.round} of ${cur.totalRounds}`}. ${c.level === 1 ? 'Find: ' + c.text : c.text}`);
+    if (c) announce(`Round ${cur.round} of ${cur.totalRounds}. ${c.level === 1 ? 'Find: ' + c.text : c.text}`);
     later(1050, Sound.paper);
   }
-  if (cur.phase === 'choose' || (cur.phase === 'lobby' && prev && prev.phase !== 'lobby')) Sound.paper();
+  if (cur.phase === 'lobby' && prev && prev.phase !== 'lobby') Sound.paper();
   if (cur.phase === 'result' || cur.phase === 'final') { FX.clearOverlays(); Music.duck(cur.phase === 'final' ? 5000 : 3000); }
   if (cur.phase === 'result') {
     // timed to the stamp hitting the paper in the CSS (~600ms)
@@ -240,7 +239,7 @@ function phaseChange(prev, cur) {
     // score this run against the best one saved on this phone for the same setup
     const solved = cur.history.filter(h => h.winnerId).length;
     const time = cur.history.reduce((t, h) => t + (h.winnerId ? h.time : 0), 0);
-    const k = `fiah.best.${cur.settings.level}.${cur.totalRounds}.${cur.settings.timer}`;
+    const k = `fiah.best.v2.${cur.totalRounds}`;
     const prev = store.get(k, null);
     const isNew = solved > 0 && (!prev || solved > prev.solved || (solved === prev.solved && time < prev.time));
     if (isNew) store.set(k, { solved, time });
@@ -313,15 +312,18 @@ const magnifierSVG = `
 
 const cameraSVG = `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 16h7l3-5h12l3 5h7a3 3 0 0 1 3 3v17a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V19a3 3 0 0 1 3-3z" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round"/><circle cx="24" cy="27" r="7.5" stroke="currentColor" stroke-width="3.5"/></svg>`;
 
+// original vector art lives as <symbol>s in index.html; nothing on screen is an emoji except the 10 reactions
+const icon = (id, cls = '') => `<svg class="ico ${cls}" aria-hidden="true"><use href="#i-${id}"/></svg>`;
+const ava = (id, cls = '') => `<svg class="ava ${cls}" aria-hidden="true"><use href="#ava-${AVATARS.includes(id) ? id : AVATARS[0]}"/></svg>`;
+
 function topbar(back = false) {
   const r = S.room;
-  let chip = '';
-  if (r && r.round) chip = r.tiebreak ? `<span class="round-chip">Tiebreaker</span>` : `<span class="round-chip">Round ${r.round} of ${r.totalRounds}</span>`;
+  const chip = r && r.round ? `<span class="round-chip">Round ${r.round} of ${r.totalRounds}</span>` : '';
   return `<header class="topbar${chip ? ' in-game' : ''}">
     ${back ? `<button class="icon-btn" data-act="back" aria-label="Back to start" title="Back">←</button>` : ''}
-    <div class="brand"><span aria-hidden="true">🔎</span><span class="brand-text">Find It at Home!</span></div>
+    <div class="brand">${icon('search', 'brand-ico')}<span class="brand-text">Find It at Home!</span></div>
     ${chip}
-    ${r && r.phase !== 'lobby' ? `<button class="icon-btn" data-act="scores" aria-label="Open scoreboard" title="Scoreboard">🏆</button>` : ''}
+    ${r && r.phase !== 'lobby' ? `<button class="icon-btn" data-act="scores" aria-label="Open the leaderboard" title="Leaderboard">${icon('trophy')}</button>` : ''}
     ${soundBtn()}
     <button class="icon-btn" data-act="rules" aria-label="How to play" title="How to play">?</button>
   </header>`;
@@ -329,8 +331,8 @@ function topbar(back = false) {
 
 // one button cycles: music + effects -> effects only -> off
 function soundBtn(cls = '') {
-  const st = SOUND_STATES[Sound.state()];
-  return `<button class="icon-btn ${cls}" data-act="sound" aria-label="Sound: ${st.label}. Tap to change." title="${st.label}">${st.icon}</button>`;
+  const id = Sound.state(), st = SOUND_STATES[id];
+  return `<button class="icon-btn ${cls}" data-act="sound" aria-label="Sound: ${st.label}. Tap to change." title="${st.label}">${icon('sound-' + id)}</button>`;
 }
 
 function chips(name, options, value) {
@@ -350,8 +352,17 @@ function rankList(players) {
 }
 const ordinal = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const listNames = names => names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 
-function scoreboard(title = 'Case Board') {
+// like a social post: how many of each reaction it got
+function reactionSummary(u) {
+  const counts = {};
+  for (const e of Object.values(u.votes || {})) counts[e] = (counts[e] || 0) + 1;
+  const parts = REACTIONS.filter(([e]) => counts[e]).map(([e, l]) => `<span class="rx" title="${l}"><span aria-hidden="true">${e}</span> ${counts[e]}<span class="sr-only"> ${l}</span></span>`);
+  return parts.length ? `<div class="rx-row">${parts.join('')}</div>` : '';
+}
+
+function scoreboard(title = 'Leaderboard') {
   const r = S.room;
   const ranked = rankList(r.players);
   const order = [...r.uploads].sort((a, b) => a.at - b.at);
@@ -362,10 +373,10 @@ function scoreboard(title = 'Case Board') {
     return `<tr class="${p.id === S.you ? 'me' : ''}${lead ? ' lead' : ''}">
       <td class="rank">${ordinal(p.rank)}</td>
       <td>
-        <div class="pl"><span class="av" aria-hidden="true">${p.avatar}</span>
+        <div class="pl">${ava(p.avatar, 'av')}
           <div class="pl-text">
             <span class="nm">${esc(p.name)}</span><span class="wins-inline sub"> · ${plural(p.won, 'win')}</span>${p.id === S.you ? '<span class="tag-chip">You</span>' : ''}${lead ? '<span class="tag-chip gold">Leader</span>' : ''}${p.connected ? '' : '<span class="sub"> (away)</span>'}
-            ${last && r.phase === 'hunt' ? `<div class="status"><span class="badge ${last.status}">${STATUS_TEXT[last.status]}</span> <span class="sub">upload #${order.indexOf(last) + 1} · ${clock(last.at)}</span></div>` : ''}
+            ${last && r.phase === 'hunt' ? `<div class="status"><span class="badge ${last.status}">${STATUS_TEXT[last.status]}</span></div>` : ''}
           </div>
         </div>
       </td>
@@ -374,29 +385,30 @@ function scoreboard(title = 'Case Board') {
     </tr>`;
   }).join('');
   return `<section class="grid-paper scoreboard" aria-label="${esc(title)}">
-    <div class="score-head"><h2 class="h2">${esc(title)}</h2><span class="eyebrow">${r.phase === 'final' ? plural(r.history.length, 'round') : r.tiebreak ? 'Tiebreaker' : `Round ${r.round || 0} of ${r.totalRounds}`}</span></div>
+    <div class="score-head"><h2 class="h2">${esc(title)}</h2><span class="eyebrow">${r.phase === 'final' ? plural(r.history.length, 'round') : `Round ${r.round || 0} of ${r.totalRounds}`}</span></div>
     <table class="score-table">
-      <thead><tr><th scope="col">Rank</th><th scope="col">Detective</th><th scope="col" class="num">Wins</th><th scope="col" class="num">Points</th></tr></thead>
+      <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col" class="num">Wins</th><th scope="col" class="num">Points</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   </section>`;
 }
 
+const LEVEL_ICON = { 1: 'search', 2: 'bubble', 3: 'bulb' };
+
 function challengeCard() {
   const r = S.room, c = r.challenge;
   if (!c) return '';
-  const typed = c.typedBy ? player(c.typedBy) : null;
   const longest = Math.max(...c.text.split(/\s+/).map(w => w.length));
   const main = c.level === 1
     ? `<div class="clue-label">Find this object</div><div class="word" style="--n:${Math.max(6, longest)}">${esc(c.text)}</div>`
     : c.level === 2
       ? `<div class="clue-label">Solve the riddle</div><p class="riddle">“${esc(c.text)}”</p>`
       : `<div class="clue-label">Learn &amp; find</div><p class="riddle learn">${esc(c.text)}</p>`;
-  const how = c.level === 2 ? 'Work out the answer, find it at home and take a photo.' : 'Find it at home and take a photo.';
+  const how = c.level === 2 ? 'Work out the answer, walk to find it, and take a photo.' : 'Walk to find it at home, and take a photo.';
   return `<section class="paper casefile tilt-l" aria-label="The clue">
-    <div class="case-meta"><span class="eyebrow">${typed ? 'Home item' : esc(c.levelName)}</span>${typed ? `<span class="by-line">Chosen by ${typed.avatar} ${esc(typed.name)}</span>` : ''}</div>
+    <div class="case-meta"><span class="eyebrow">${esc(c.levelName)}</span></div>
     <div class="challenge-text">
-      <span class="icon" aria-hidden="true">${c.icon}</span>
+      ${icon(LEVEL_ICON[c.level] || 'search', 'icon')}
       ${main}
       ${c.answer && c.level !== 1 ? `<div class="answer">Answer: <b>${esc(c.answer)}</b></div>` : ''}
     </div>
@@ -412,65 +424,56 @@ function viewIntro() {
       <span class="file-no">CASE FILE #001</span>
       <span class="stamp conf" aria-hidden="true">Top secret</span>
       ${magnifierSVG}
+      <p class="intro-eyebrow">A family wellness game</p>
       <h1 class="game-title">Find it <span>at home!</span></h1>
       <p class="tagline">Find it. Click it. Upload it. <b>Win it!</b></p>
       <ul class="intro-meta" aria-label="About the game">
-        <li><b>1–6</b>players</li>
-        <li><b>2</b>game modes</li>
-        <li><b>1 point</b>per verified win</li>
+        <li><b>2–6</b>players</li>
+        <li><b>5</b>rounds</li>
+        <li><b>1 point</b>per approved find</li>
       </ul>
     </section>
     <div class="intro-actions">
-      <button class="btn btn-red btn-lg" data-act="play" data-v="host">▶ Play Game</button>
+      <button class="btn btn-red btn-lg" data-act="play" data-v="host">Play Game</button>
       <button class="btn btn-dark" data-act="play" data-v="join">Join a game</button>
       <button class="btn btn-paper" data-act="rules">How to play</button>
     </div>
   </div>`;
 }
 
-const LEVEL_INFO = {
-  '1': 'Find the object named on the card.',
-  '2': 'Solve a riddle, then find the answer.',
-  '3': 'Find anything that fits a description, like “something soft”.',
-  mixed: 'Rounds go Word Hunt → Riddle Hunt → Learn & Find, then repeat.',
-};
-
 function nameField() {
   const u = S.ui, err = u.nameError;
   return `<div class="field">
-      <label class="label step" for="nm">Your detective name</label>
+      <label class="label step" for="nm">Your name</label>
       <input class="input" id="nm" data-model="name" maxlength="16" autocomplete="nickname" placeholder="Type your name" value="${esc(u.name)}"
         aria-describedby="nm-help${err ? ' nm-err' : ''}"${err ? ' aria-invalid="true"' : ''}>
       ${err ? `<p class="field-error" id="nm-err" role="alert">${esc(err)}</p>` : `<p class="help" id="nm-help">This is how the other players will see you.</p>`}
     </div>
-    ${group('Pick your avatar', `<div class="avatars">${AVATARS.map(a =>
-      `<button type="button" class="avatar-opt" data-act="avatar" data-v="${a}" aria-pressed="${a === u.avatar}" aria-label="${AVATAR_NAMES[a] || 'Avatar'}"${a === u.avatar ? pop('av:' + a) : ''}>${a}</button>`).join('')}</div>`)}`;
+    ${group('Pick your animal', `<div class="avatars">${AVATARS.map(a =>
+      `<button type="button" class="avatar-opt" data-act="avatar" data-v="${a}" aria-pressed="${a === u.avatar}" aria-label="${AVATAR_NAMES[a]}"${a === u.avatar ? pop('av:' + a) : ''}>${ava(a)}</button>`).join('')}</div>`)}`;
 }
 
 function viewHome() {
   const u = S.ui, s = u.settings, host = u.tab === 'host', solo = s.seats === 1;
   const busy = !S.online || u.busy;
-  const modeCard = (v, icon, title, text, ex) => `<button type="button" class="mode-card" data-act="set" data-k="mode" data-v="${v}" aria-pressed="${s.mode === v}"${s.mode === v ? pop('chip:mode:' + v) : ''}>
-      <span class="mode-top"><span class="mode-icon" aria-hidden="true">${icon}</span><span class="mode-check" aria-hidden="true">✓</span></span>
-      <b>${title}</b><small>${text}</small><span class="ex">Example: ${ex}</span></button>`;
-  const others = s.seats - 1;
-  const settings = `
-    ${group('How many players?', chips('seats', [[1, 'Solo'], ...[2, 3, 4, 5, 6].map(n => [n, n])], s.seats),
-      `<p class="help">${solo ? 'Just you against the clock. You check your own photos, honestly!' : `You and ${plural(others, 'friend')}, each on your own phone.`}</p>`)}
-    ${solo ? '' : group('Game mode', `<div class="modes">
-      ${modeCard('random', '🎲', 'Random', 'The computer picks the clue. Everyone gets the same challenge.', 'SPOON')}
-      ${modeCard('type', '⌨️', 'Type a Home Item', 'Players take turns choosing an item. Everyone races to find it.', 'WATER BOTTLE')}
-    </div>`)}
-    ${s.mode === 'random' || solo ? group('Level', chips('level', Object.entries(LEVELS), s.level), `<p class="help">${LEVEL_INFO[s.level] || ''}</p>`) : ''}
-    ${group('Rounds', chips('rounds', [[3, 3], [5, 5], [7, 7], [10, 10]], s.rounds))}
-    ${group('Time per round', chips('timer', [[0, 'No timer'], [60, '1 min'], [90, '1½ min'], [120, '2 min'], [180, '3 min']], s.timer))}`;
   const hostForm = `
     <div class="setup-grid">
       <div class="setup-col">${nameField()}</div>
-      <div class="setup-col">${settings}</div>
+      <div class="setup-col">
+        ${group('How many players?', chips('seats', [[1, 'Practice'], ...[2, 3, 4, 5, 6].map(n => [n, n])], s.seats),
+          `<p class="help">${solo ? 'Practice alone. You check your own photos, honestly!' : `You and ${plural(s.seats - 1, 'friend')}, each on your own phone.`}</p>`)}
+        <div class="game-shape">
+          <p class="label">Every game</p>
+          <ul>
+            <li><b>5 rounds</b>, 2 minutes each</li>
+            <li>Clues get harder: Word Hunt, Riddle Hunt, Learn &amp; Find</li>
+            <li>A short wellness break after every round</li>
+          </ul>
+        </div>
+      </div>
     </div>
     <div class="cta">
-      <button class="btn btn-red btn-lg" data-act="create" ${busy ? 'disabled' : ''}>${u.busy ? 'Opening…' : solo ? 'Start solo game' : 'Create game'}</button>
+      <button class="btn btn-red btn-lg" data-act="create" ${busy ? 'disabled' : ''}>${u.busy ? 'Opening…' : solo ? 'Start practice' : 'Create game'}</button>
       <p class="help center">${solo ? 'Your first clue appears straight away.' : 'Next: invite players with a 4-letter code.'}</p>
     </div>`;
   const cerr = u.codeError;
@@ -500,7 +503,7 @@ function viewLobby() {
   for (let i = 0; i < Math.max(r.seats, r.players.length); i++) {
     const p = r.players[i];
     slots.push(p
-      ? `<li class="suspect ${p.connected ? '' : 'offline'}"${fxa('p:' + p.id, i)}><span class="pin"></span><div class="mug" aria-hidden="true">${p.avatar}</div><div class="name">${esc(p.name)}</div><div class="role">${p.id === r.hostId ? 'Host' : p.id === S.you ? 'You' : 'Detective'}</div></li>`
+      ? `<li class="suspect ${p.connected ? '' : 'offline'}"${fxa('p:' + p.id, i)}><span class="pin"></span><div class="mug">${ava(p.avatar)}</div><div class="name">${esc(p.name)}</div><div class="role">${p.id === r.hostId ? 'Host' : p.id === S.you ? 'You' : 'Player'}</div></li>`
       : `<li class="suspect empty"><div class="mug" aria-hidden="true">?</div><div class="name">Empty seat</div><div class="role">waiting…</div></li>`);
   }
   const n = r.players.length;
@@ -515,58 +518,29 @@ function viewLobby() {
       </div>
       <p class="join-url">Everyone opens <b>${esc(base.replace(/^https?:\/\//, ''))}</b>, taps <b>Join a game</b> and types <b>${esc(r.code)}</b>.</p>
     </section>
-    <section class="folder" data-tab="Detectives · ${n} of ${r.seats}">
+    <section class="folder" data-tab="Players · ${n} of ${r.seats}">
       <ul class="suspects" aria-label="Players">${slots.join('')}</ul>
     </section>
     <section class="paper">
-      <h2 class="label">Game settings</h2>
+      <h2 class="label">This game</h2>
       <ul class="settings-summary">
-        <li>${r.settings.mode === 'type' ? '⌨️ Type a Home Item' : '🎲 Random'}</li>
-        ${r.settings.mode === 'random' ? `<li>${LEVELS[r.settings.level]}</li>` : ''}
-        <li>${r.settings.rounds} rounds</li>
-        <li>${r.settings.timer ? `⏱ ${r.settings.timer / 60} min each` : 'No timer'}</li>
+        <li>5 rounds</li>
+        <li>2 minutes each</li>
+        <li>Word → Riddle → Learn &amp; Find</li>
+        <li>Wellness break every round</li>
       </ul>
       ${isHost() ? group('Players expected', chips('lobbySeats', [2, 3, 4, 5, 6].filter(x => x >= n).map(x => [x, x]), r.seats)) : ''}
     </section>
     ${isHost()
       ? `<div class="cta"><button class="btn btn-red btn-lg" data-act="start" ${n >= 2 ? fxa('ready:' + r.code) : 'disabled'}>${n >= 2 ? `Start the hunt (${n} players)` : 'Waiting for at least 2 players'}</button>
          ${n < 2 ? `<p class="help light center">Share the code above. The button wakes up when someone joins.</p>` : ''}</div>`
-      : `<div class="paper center waiting-host"><span class="spinner-glass" aria-hidden="true">🔎</span><p>Waiting for the host to start<span class="dots"></span></p></div>`}
+      : `<div class="paper center waiting-host">${icon('search', 'spinner-glass')}<p>Waiting for the host to start<span class="dots"></span></p></div>`}
     <button class="link-btn light" data-act="leave">Leave this game</button>
-  </div>`;
-}
-
-function viewChoose() {
-  const r = S.room, chooser = player(r.chooserId), mine = r.chooserId === S.you;
-  return `<div class="screen">
-    ${topbar()}
-    ${mine ? `
-      <section class="folder" data-tab="Your turn">
-        <div class="paper">
-          <h1 class="h1">Choose a home item</h1>
-          <div class="field">
-            <label class="label" for="ti">Home item</label>
-            <input class="input" id="ti" data-model="typeText" maxlength="40" placeholder="e.g. WATER BOTTLE" value="${esc(S.ui.typeText)}" autocomplete="off" aria-describedby="ti-help">
-            <p class="help" id="ti-help">Pick something everyone can find at home. You race too!</p>
-          </div>
-          ${group('Or pick one', `<div class="chips">${['SPOON', 'SOCK', 'BOOK', 'PILLOW', 'TOOTHBRUSH'].map(x => `<button type="button" class="chip" data-act="suggest" data-v="${x}">${x}</button>`).join('')}</div>`)}
-          <button class="btn btn-red btn-lg" data-act="typeItem">Send to everyone</button>
-          <p class="help">Fair play: nothing hot, sharp or fragile.</p>
-        </div>
-      </section>`
-      : `<section class="paper waiting tilt-r">
-          <div class="big-avatar" aria-hidden="true">${chooser ? chooser.avatar : '🕵️'}</div>
-          <h1 class="h1">${esc(chooser ? chooser.name : 'Someone')} is choosing<span class="dots"></span></h1>
-          <p class="muted">Get ready to search! The item appears here in a moment.</p>
-        </section>`}
-    ${scoreboard()}
-    ${leaveLink()}
   </div>`;
 }
 
 function timerBlock() {
   const r = S.room;
-  if (!r.settings.timer) return '';
   const total = r.settings.timer * 1000;
   const left = r.endsAt ? r.endsAt - now() : (r.remaining ?? total);
   return `<div class="timer-wrap" role="timer" aria-label="Time left">
@@ -576,29 +550,28 @@ function timerBlock() {
   </div>`;
 }
 
-function evidenceLog() {
+// this round's posts, newest last, like a social feed
+function roundFeed() {
   const r = S.room;
   if (!r.uploads.length) return '';
-  const rows = [...r.uploads].sort((a, b) => a.at - b.at).map((u, i) => {
+  const items = [...r.uploads].sort((a, b) => a.at - b.at).map((u, i) => {
     const p = player(u.pid);
-    return `<tr class="${u.id === r.reviewing ? 'hl' : ''}"${fxa('log:' + u.id)}><td>#${i + 1}</td><td>${clock(u.at)}</td><td>${p ? p.avatar + ' ' + esc(p.name) : '?'}</td><td><span class="badge ${u.status}"${fxa(`st:${u.id}:${u.status}`)}>${STATUS_TEXT[u.status]}</span></td></tr>`;
+    return `<li class="feed-item${u.id === r.reviewing ? ' hl' : ''}"${fxa('log:' + u.id)}>
+      ${ava(p && p.avatar, 'av')}
+      <div class="feed-text"><b>${p ? esc(p.name) : '?'}</b><span class="sub">${i === 0 ? 'posted first' : 'posted'} · ${clock(u.at)}</span>${reactionSummary(u)}</div>
+      <span class="badge ${u.status}"${fxa(`st:${u.id}:${u.status}`)}>${STATUS_TEXT[u.status]}</span>
+    </li>`;
   }).join('');
-  return `<section class="paper evidence">
-    <h2 class="label">Evidence record</h2>
-    <table class="log"><thead><tr><th scope="col">Order</th><th scope="col">Time</th><th scope="col">Detective</th><th scope="col">Check</th></tr></thead><tbody>${rows}</tbody></table>
-  </section>`;
+  return `<section class="paper feed"><h2 class="label">Round feed</h2><ul class="feed-list">${items}</ul></section>`;
 }
 
 function captureBlock() {
   const r = S.room, u = S.ui;
   const mine = r.uploads.filter(x => x.pid === S.you);
   const pending = mine.find(x => x.status === 'pending');
-  if (r.tiebreak && !r.tiebreak.includes(S.you)) {
-    return `<section class="paper center"><h2 class="h2">You're the judge ⚖️</h2><p class="muted">Only the tied players hunt in the tiebreaker. You'll check their photos.</p></section>`;
-  }
   if (pending) {
-    return `<section class="paper center submitted tilt-r"><span class="stamp"${fxa('sub:' + pending.id)}>Evidence sent</span>
-      <p>Your photo is waiting to be checked<span class="dots"></span><br><span class="muted">It only counts once the others approve it.</span></p></section>`;
+    return `<section class="paper center submitted tilt-r"><span class="stamp"${fxa('sub:' + pending.id)}>Posted</span>
+      <p>Your post is waiting for reactions<span class="dots"></span><br><span class="muted">It only counts once most players say yes.</span></p></section>`;
   }
   if (u.capture) {
     return `<section class="stack capture">
@@ -613,25 +586,24 @@ function captureBlock() {
     </section>`;
   }
   const last = mine[mine.length - 1];
-  const note = last && last.status === 'retake' ? `<div class="alert soft verdict"${fxa('v:' + last.id + ':retake')} role="status">🔄 The others asked for a clearer photo. Take it again!</div>`
-    : last && last.status === 'rejected' ? `<div class="alert soft verdict no"${fxa('v:' + last.id + ':rejected')} role="status">❌ That photo didn't match. Keep looking!</div>` : '';
+  const note = last && last.status === 'rejected' ? `<div class="alert soft verdict no"${fxa('v:' + last.id + ':rejected')} role="status">Your post wasn't approved. Find it and post again!</div>` : '';
   return `<section class="stack capture">
     ${note}
     <button class="camera-seal" data-act="camera" aria-label="Take a photo">${cameraSVG}<span>Take photo</span></button>
     <p class="help light center">Camera won't open? Allow camera access for this site in your browser settings.</p>
-    <p class="safety">🚶 Walk carefully. Don't run or climb.</p>
+    <p class="safety">Walk carefully. Don't run or climb.</p>
   </section>`;
 }
 
 function reviewBlock() {
   const r = S.room, u = r.uploads.find(x => x.id === r.reviewing);
   if (!u) return '';
+  if (r.solo) return soloCheck(u);
   const up = player(u.pid);
   const order = [...r.uploads].sort((a, b) => a.at - b.at).indexOf(u);
   const isMine = u.pid === S.you;
   const voters = r.players.filter(p => p.connected && p.id !== u.pid);
   const myVote = u.votes[S.you];
-  if (r.solo) return soloCheck(u);
   const c = r.challenge;
   const target = c ? (c.level === 1 ? c.text : c.answer) : '';
   const emojiGroup = (title, list, cls) => `<div class="emoji-group ${cls}"><h3 class="emoji-group-title">${title}</h3><div class="emoji-row">${list.map(([e, l]) =>
@@ -639,41 +611,37 @@ function reviewBlock() {
   const voted = voters.filter(v => u.votes[v.id]).length;
   const pills = voters.map(v => {
     const e = u.votes[v.id];
-    return `<li class="vote-pill${e ? ' done' : ''}"${fxa(`vp:${u.id}:${v.id}:${e ? 1 : 0}`)}><span class="av" aria-hidden="true">${v.avatar}</span>${esc(v.name)}: ${e ? (e === '🤔' ? 'not sure' : 'voted') : 'waiting'}</li>`;
+    return `<li class="vote-pill${e ? ' done' : ''}"${fxa(`vp:${u.id}:${v.id}:${e ? 1 : 0}`)}>${ava(v.avatar, 'av')}${esc(v.name)}: ${e ? 'reacted' : 'waiting'}</li>`;
   }).join('');
-  const myLabel = myVote ? (ALL_LABELS[myVote] || '') : '';
   return `
-    <div class="review-banner">
-      <span class="eyebrow">${order === 0 ? 'Uploaded first' : `Upload #${order + 1}`} · ${clock(u.at)} · not checked yet</span>
-      <div class="who"${fxa('who:' + u.id)}>${up ? up.avatar + ' ' + esc(up.name) : '?'}</div>
-    </div>
     <div class="review-grid">
-      <div>
+      <article class="post" aria-label="Post by ${esc(up ? up.name : 'a player')}">
+        <header class="post-head"${fxa('who:' + u.id)}>${ava(up && up.avatar, 'av')}<div><b class="who">${up ? esc(up.name) : '?'}</b><span class="sub">${order === 0 ? 'posted first' : `post #${order + 1}`} · ${clock(u.at)}</span></div></header>
         <figure class="polaroid"${fxa('rev:' + u.id)}><span class="tape"></span>
-          ${S.photos[u.id] ? `<img src="${S.photos[u.id]}" alt="Photo uploaded by ${esc(up ? up.name : 'a player')}">` : `<div class="photo-loading">Loading photo…</div>`}
-          <figcaption>Evidence #${order + 1}</figcaption>
+          ${S.photos[u.id] ? `<img src="${S.photos[u.id]}" alt="Photo posted by ${esc(up ? up.name : 'a player')}">` : `<div class="photo-loading">Loading photo…</div>`}
+          <figcaption>${target ? `Find: ${esc(target)}` : 'New post'}</figcaption>
         </figure>
-        ${u.oldPhoto ? `<div class="alert">⚠️ This photo file looks older than this round. Fresh photos only!</div>` : ''}
-      </div>
+        ${reactionSummary(u)}
+        ${u.oldPhoto ? `<div class="alert">Heads up: this photo looks older than this round. Fresh photos only!</div>` : ''}
+      </article>
       <section class="paper verify">
         ${isMine
-          ? `<h2 class="h2 center">The others are checking your photo<span class="dots"></span></h2><p class="center muted">It only counts once most of them approve it.</p>`
-          : `<h2 class="h2">Does this photo show the correct object?</h2>
+          ? `<h2 class="h2 center">Everyone is reacting to your post<span class="dots"></span></h2><p class="center muted">It only counts if more than half say yes.</p>`
+          : `<h2 class="h2">React: does this photo show the right object?</h2>
              ${target ? `<p class="target-line">Looking for: <span class="target">${esc(target)}</span></p>` : ''}
              <div class="emoji-groups">
-               ${emojiGroup('Yes, approve', EMOJI.positive, 'pos')}
-               ${emojiGroup('No, or retake', EMOJI.action, 'neg')}
-               ${emojiGroup('Unsure', EMOJI.unsure, 'unsure')}
+               ${emojiGroup('Yes', REACTIONS.slice(0, 5), 'pos')}
+               ${emojiGroup('No or not sure', REACTIONS.slice(5), 'neg')}
              </div>
-             <p class="vote-status${myVote ? ' done' : ''}" role="status">${myVote ? `✓ You chose <b>${myVote} ${myLabel}</b>. You can change it until everyone has voted.` : 'Tap one. Most players must approve for it to count.'}</p>`}
-        <div class="votes-head"><span class="label">Votes</span><span class="sub">${voted} of ${voters.length}</span></div>
-        <ul class="votes-strip">${pills || '<li class="sub">No one else can vote, so it is approved automatically.</li>'}</ul>
-        ${isHost() ? `<button class="btn btn-dark btn-sm full" data-act="forceResolve">Close the vote now</button>` : ''}
+             <p class="vote-status${myVote ? ' done' : ''}" role="status">${myVote ? `✓ You reacted <b>${myVote} ${ALL_LABELS[myVote] || ''}</b>. You can change it until everyone has reacted.` : 'Tap one. If more than half say yes, the post is approved.'}</p>`}
+        <div class="votes-head"><span class="label">Reactions</span><span class="sub">${voted} of ${voters.length}</span></div>
+        <ul class="votes-strip">${pills || '<li class="sub">No one else can react, so it is approved automatically.</li>'}</ul>
+        ${isHost() ? `<button class="btn btn-dark btn-sm full" data-act="forceResolve">Close the reactions now</button>` : ''}
       </section>
     </div>`;
 }
 
-// nobody else can check a solo photo, so the player does it honestly
+// nobody else can check a practice photo, so the player does it honestly
 function soloCheck(u) {
   const c = S.room.challenge;
   const target = c ? (c.level === 1 ? c.text : c.answer) : '';
@@ -681,11 +649,11 @@ function soloCheck(u) {
     <div class="review-banner"><span class="eyebrow">Self-check · found in ${clock(u.at)}</span></div>
     <figure class="polaroid compact"${fxa('rev:' + u.id)}><span class="tape"></span>
       ${S.photos[u.id] ? `<img src="${S.photos[u.id]}" alt="Your photo">` : `<div class="photo-loading">Loading photo…</div>`}
-      <figcaption>Your evidence</figcaption>
+      <figcaption>Your post</figcaption>
     </figure>
     <section class="paper center verify">
       <h2 class="h2">Does it match${target ? `: <span class="target">${esc(target)}</span>` : ''}?</h2>
-      <p class="muted">Be honest, detective. Only you can check this one.</p>
+      <p class="muted">Be honest. Only you can check this one.</p>
       <div class="btn-row">
         <button class="btn btn-paper" data-act="vote" data-v="🔄">🔄 Retake</button>
         <button class="btn btn-red" data-act="vote" data-v="✅">✅ It matches</button>
@@ -693,13 +661,12 @@ function soloCheck(u) {
     </section>`;
 }
 
-// while a photo is being checked, others can still send theirs — it joins the upload queue
+// while a post is being judged, others can still post theirs — it joins the queue
 function queueBlock() {
   const r = S.room, u = r.uploads.find(x => x.id === r.reviewing);
   if (!u || u.pid === S.you) return '';
-  if (r.tiebreak && !r.tiebreak.includes(S.you)) return '';
   return `<section class="folder" data-tab="Found it too?">
-    <p class="help">Send yours anyway. Photos are checked in upload order, so if this one isn't approved, the next one can still win.</p>
+    <p class="help">Post yours anyway. Posts are checked in order, so if this one isn't approved, the next one can still win.</p>
     ${captureBlock()}
   </section>`;
 }
@@ -708,15 +675,12 @@ const leaveLink = () => `<button class="link-btn light quiet" data-act="leave">L
 
 function viewHunt() {
   const r = S.room;
-  const canSkip = !r.reviewing && !r.uploads.length && r.skipsLeft > 0;
   return `<div class="screen${r.reviewing && !r.solo ? ' wide' : ''}">
     ${topbar()}
     ${timerBlock()}
     ${r.reviewing ? '' : challengeCard()}
-    ${r.reviewing ? reviewBlock() + queueBlock() : `
-      ${captureBlock()}
-      ${canSkip ? `<button class="link-btn light" data-act="skip">Can't find it? Get a different clue (${r.skipsLeft} left)</button>` : ''}`}
-    ${evidenceLog()}
+    ${r.reviewing ? reviewBlock() + queueBlock() : captureBlock()}
+    ${roundFeed()}
     <div class="footer-links">
       ${isHost() && !r.reviewing ? `<button class="link-btn light quiet" data-act="endRound">${r.solo ? 'Give up on this clue' : 'End this round (host)'}</button>` : ''}
       ${r.solo ? '' : leaveLink()}
@@ -724,68 +688,92 @@ function viewHunt() {
   </div>`;
 }
 
+// a short, safe activity everyone does together between rounds
+const WELLNESS = [
+  'Stretch both arms up high and hold for 5 seconds.',
+  'Take 3 slow, deep breaths in through your nose.',
+  'Have a sip of water.',
+  'Roll your shoulders back 5 times.',
+  'March on the spot for 10 steps.',
+  'Shake out your hands, then give a big smile.',
+  'Look out of a window and name 3 things you see.',
+  'Reach down and touch your knees or your toes.',
+  'Give someone near you a high five.',
+  'Stand tall and wiggle your fingers and toes.',
+];
+const wellnessCard = round => `<section class="paper wellness" aria-label="Wellness break">
+    <div class="wellness-head">${icon('heart', 'wellness-ico')}<h2 class="h2">Wellness break</h2></div>
+    <p class="wellness-do">${WELLNESS.at((round - 1) % WELLNESS.length)}</p>
+    <p class="help">Do it together before the next round.</p>
+  </section>`;
+
 function viewResult() {
   const r = S.room, res = r.lastResult || {};
   const w = res.winnerId ? player(res.winnerId) : null;
   const photo = res.uploadId && S.photos[res.uploadId];
-  const finalNext = r.round >= r.totalRounds || r.tiebreak;
-  const top = Math.max(...r.players.map(p => p.score));
-  const tied = r.players.filter(p => p.score === top).length > 1;
   const won = res.uploadId && r.uploads.find(u => u.id === res.uploadId);
-  let nextLabel = 'Next round ▶';
-  if (finalNext) nextLabel = tied ? 'Tie! Play the tiebreaker ▶' : 'See final results ▶';
+  const nextLabel = r.round >= r.totalRounds ? 'See final results' : 'Next round';
   const c = r.challenge;
   return `<div class="screen">
     ${topbar()}
     <section class="paper result-card tilt-l">
       ${w ? `<span class="stamp big green">Case solved!</span>
-             <div class="big-avatar" aria-hidden="true">${w.avatar}</div>
+             <div class="big-avatar">${ava(w.avatar)}</div>
              <h1 class="winner-line">${r.solo ? 'You found it!' : `${w.id === S.you ? 'You win' : esc(w.name) + ' wins'} this round!`}</h1>
              <p class="plus-one">+1 point</p>
              <p class="result-sub">${r.solo ? (won ? `Found in ${clock(won.at)}` : '') : `${w.id === S.you ? 'You now have' : esc(w.name) + ' now has'} ${plural(w.score, 'point')}.`}</p>`
           : `<span class="stamp big">Unsolved</span>
              <h1 class="winner-line">No winner this round</h1>
-             <p class="result-sub">${r.solo ? 'This one got away. On to the next clue!' : 'No photo was approved in time, so nobody scores.'}</p>`}
+             <p class="result-sub">${r.solo ? 'This one got away. On to the next clue!' : 'No post was approved in time, so nobody scores.'}</p>`}
       ${c ? `<p class="case-line">The clue: <b>${esc(c.text)}</b>${c.level !== 1 && c.answer ? ` · Answer: <b>${esc(c.answer)}</b>` : ''}</p>` : ''}
     </section>
-    ${photo ? `<figure class="polaroid compact"><span class="tape"></span><img src="${photo}" alt="The winning photo"><figcaption>Winning evidence</figcaption></figure>` : ''}
+    ${wellnessCard(r.round)}
+    ${photo ? `<figure class="polaroid compact"><span class="tape"></span><img src="${photo}" alt="The winning photo"><figcaption>Winning post</figcaption></figure>${won ? reactionSummary(won) : ''}` : ''}
     ${r.solo ? `<p class="center light solo-progress">Solved <b>${me() ? me().score : 0}</b> of ${r.round} so far · ${r.totalRounds - r.round} to go</p>` : scoreboard()}
-    ${isHost() ? `<div class="cta"><button class="btn btn-red btn-lg" data-act="next">${nextLabel}</button></div>`
+    ${isHost() ? `<div class="cta"><button class="btn btn-red btn-lg" data-act="next">${nextLabel} →</button></div>`
       : `<p class="center light">Waiting for the host to continue<span class="dots"></span></p>`}
     ${r.solo ? '' : leaveLink()}
   </div>`;
 }
 
+// every round's winning post in one grid, like a profile page
+function gameFeed() {
+  const tiles = S.room.history.map(h => {
+    const p = h.winnerId && player(h.winnerId), img = h.uploadId && S.photos[h.uploadId];
+    return `<li class="tile${p ? '' : ' unsolved'}">
+      ${img ? `<img src="${img}" alt="Round ${h.round}: ${esc(h.challenge)}, found by ${esc(p ? p.name : '')}">` : `<div class="tile-empty">${p ? 'Photo not on this phone' : 'Unsolved'}</div>`}
+      <div class="tile-cap">${p ? ava(p.avatar, 'av') : ''}<span><b>${p ? esc(p.name) : 'Nobody'}</b><span class="sub">Round ${h.round} · ${esc(h.level)}</span></span></div>
+    </li>`;
+  }).join('');
+  return `<section class="paper"><h2 class="label">Game feed</h2><ul class="feed-grid">${tiles}</ul></section>`;
+}
+
 function viewFinal() {
   const r = S.room, ranked = rankList(r.players);
-  const champ = ranked[0];
-  const iWon = champ && champ.id === S.you;
+  const top = ranked[0] ? ranked[0].score : 0;
+  const leaders = top > 0 ? ranked.filter(p => p.score === top) : [];
+  const iWon = leaders.some(p => p.id === S.you);
+  const shared = leaders.length > 1;
   const pod = [ranked[1], ranked[0], ranked[2]];
-  const cls = ['p2', 'p1', 'p3'], place = ['2nd', '1st', '3rd'];
+  const cls = ['p2', 'p1', 'p3'];
+  const headline = !leaders.length ? 'Nobody scored this time'
+    : shared ? `It's a tie! ${listNames(leaders.map(p => p.id === S.you ? 'You' : esc(p.name)))} share the win`
+      : iWon ? 'You win the game!' : `${esc(leaders[0].name)} wins the game!`;
   return `<div class="screen final">
     ${topbar()}
     <section class="paper result-card">
       <span class="eyebrow">Case closed</span>
-      ${iWon ? `<span class="stamp big green">Victory!</span>` : `<span class="stamp big">Good hunt!</span>`}
-      <div class="big-avatar" aria-hidden="true">${champ ? champ.avatar : ''}</div>
-      <h1 class="winner-line">${champ ? (iWon ? 'You win the game!' : esc(champ.name) + ' wins the game!') : ''}</h1>
-      <p class="result-sub">${champ ? plural(champ.score, 'point') : ''} · ${plural(r.history.length, 'round')} played</p>
+      ${!leaders.length ? `<span class="stamp big">Good try!</span>` : shared ? `<span class="stamp big green">Shared win!</span>` : iWon ? `<span class="stamp big green">Victory!</span>` : `<span class="stamp big">Good hunt!</span>`}
+      <div class="big-avatar">${leaders.length ? leaders.map(p => ava(p.avatar)).join('') : ava(me() && me().avatar)}</div>
+      <h1 class="winner-line">${headline}</h1>
+      <p class="result-sub">${leaders.length ? `${plural(top, 'point')} · ` : ''}${plural(r.history.length, 'round')} played · ${plural(r.history.length, 'wellness break')} done</p>
     </section>
-    <div class="podium" aria-hidden="true">${pod.map((p, i) => p ? `<div class="step ${cls[i]}"><div class="av">${p.avatar}</div><div class="nm">${esc(p.name)}</div><div class="block">${place[i]}</div></div>` : '<div></div>').join('')}</div>
+    <div class="podium" aria-hidden="true">${pod.map((p, i) => p ? `<div class="step ${cls[i]} r${Math.min(p.rank, 3)}">${ava(p.avatar, 'av')}<div class="nm">${esc(p.name)}</div><div class="block">${ordinal(p.rank)}</div></div>` : '<div></div>').join('')}</div>
     ${scoreboard('Final standings')}
-    ${historyTable()}
+    ${gameFeed()}
     ${isHost() ? `<div class="cta"><button class="btn btn-red btn-lg" data-act="playAgain">Play again</button></div>` : `<p class="center light">The host can start a new game.</p>`}
     <button class="btn btn-dark" data-act="leave">Leave</button>
   </div>`;
-}
-
-function historyTable() {
-  return `<section class="paper">
-      <h2 class="label">Case history</h2>
-      <table class="log"><thead><tr><th scope="col">#</th><th scope="col">Clue</th><th scope="col">Solved by</th></tr></thead><tbody>
-      ${S.room.history.map(h => { const p = h.winnerId && player(h.winnerId); return `<tr><td>${h.tiebreak ? 'TB' : h.round}</td><td>${esc(h.challenge)}</td><td>${p ? p.avatar + ' ' + esc(p.name) + ` <span class="sub">${clock(h.time)}</span>` : '<span class="sub">Unsolved</span>'}</td></tr>`; }).join('')}
-      </tbody></table>
-    </section>`;
 }
 
 function viewSoloFinal() {
@@ -795,9 +783,9 @@ function viewSoloFinal() {
   return `<div class="screen">
     ${topbar()}
     <section class="paper result-card">
-      <span class="eyebrow">Case closed</span>
+      <span class="eyebrow">Practice complete</span>
       ${st.solved ? `<span class="stamp big green">${all ? 'Perfect!' : 'Good hunt!'}</span>` : `<span class="stamp big">Unsolved</span>`}
-      <div class="big-avatar" aria-hidden="true">${p ? p.avatar : '🕵️'}</div>
+      <div class="big-avatar">${ava(p && p.avatar)}</div>
       <h1 class="winner-line">${headline}</h1>
       <dl class="solo-stats">
         <div><dt>Solved</dt><dd>${st.solved}/${r.totalRounds}</dd></div>
@@ -806,55 +794,46 @@ function viewSoloFinal() {
       </dl>
       ${st.prev && !st.isNew ? `<p class="best-line">Your best: ${st.prev.solved}/${r.totalRounds} in ${clock(st.prev.time)}</p>` : ''}
     </section>
-    ${historyTable()}
+    ${gameFeed()}
     <div class="cta"><button class="btn btn-red btn-lg" data-act="playAgain">Play again</button></div>
     <button class="btn btn-dark" data-act="leave">Leave</button>
   </div>`;
 }
 
 function rulesModal() {
-  const key = list => list.map(([e, l]) => `<li><span aria-hidden="true">${e}</span> ${l}</li>`).join('');
+  const row = ([e, l], yes) => `<tr><td class="rx-emo" aria-hidden="true">${e}</td><td>${l}</td><td>${yes ? 'Yes' : 'No'}</td></tr>`;
   return `<div class="modal paper rules" role="dialog" aria-modal="true" aria-labelledby="rules-title">
     <button class="close" data-act="closeModal" aria-label="Close" data-autofocus>✕</button>
     <h2 class="h1" id="rules-title">How to play</h2>
-    <p class="lead">Find it. Snap it. Upload first. Win the round.</p>
+    <p class="lead">Walk, find, post, react. Stay well!</p>
     <ol class="steps">
-      <li><span class="ico" aria-hidden="true">👥</span>Choose players and a game mode.</li>
-      <li><span class="ico" aria-hidden="true">🔎</span>Look at the clue.</li>
-      <li><span class="ico" aria-hidden="true">🏠</span>Find the object at home.</li>
-      <li><span class="ico" aria-hidden="true">📷</span>Take a photo.</li>
-      <li><span class="ico" aria-hidden="true">📤</span>Save and upload it.</li>
-      <li><span class="ico" aria-hidden="true">✅</span>The other players check your photo.</li>
-      <li><span class="ico" aria-hidden="true">⭐</span>An approved photo wins 1 point.</li>
-      <li><span class="ico" aria-hidden="true">🏆</span>Check the scoreboard and play the next round.</li>
+      <li>Read the clue.</li>
+      <li>Walk (never run) and find the object at home.</li>
+      <li>Take a photo and post it.</li>
+      <li>Everyone else reacts with one emoji.</li>
+      <li>More than half say yes? The post wins 1 point.</li>
+      <li>Not approved? Everyone keeps searching.</li>
+      <li>Do the wellness break together.</li>
+      <li>After 5 rounds, most points wins. A tie is a shared win.</li>
     </ol>
-    <h3>Game modes</h3>
+    <h3>The clues get harder</h3>
     <dl class="defs">
-      <dt>🎲 Random</dt><dd>The computer picks the clue. Everyone gets the same one.</dd>
-      <dt>⌨️ Type a Home Item</dt><dd>Players take turns typing an item. Everyone races to find it, even the person who typed it.</dd>
+      <dt>1. Word Hunt</dt><dd>Find the object named on the card.</dd>
+      <dt>2. Riddle Hunt</dt><dd>Solve a riddle, then find the answer.</dd>
+      <dt>3. Learn &amp; Find</dt><dd>Read a health fact, then find something that fits.</dd>
     </dl>
-    <h3>Levels</h3>
-    <dl class="defs">
-      <dt>1. Word Hunt</dt><dd>Find a spoon.</dd>
-      <dt>2. Riddle Hunt</dt><dd>“I have pages and you read me.”</dd>
-      <dt>3. Learn &amp; Find</dt><dd>Find something used to tell time.</dd>
-    </dl>
-    <h3>Checking photos</h3>
-    <div class="emoji-key">
-      <div><h4>Approve</h4><ul>${key(EMOJI.positive)}</ul></div>
-      <div><h4>Reject or retake</h4><ul>${key(EMOJI.action)}${key(EMOJI.unsure)}</ul></div>
-    </div>
-    <p class="note">Most of the other players must approve. You can't vote on your own photo. 🤔 doesn't count either way.</p>
-    <h3>Scoring</h3>
-    <p class="note">The first approved photo wins <b>1 point</b>. Uploading first is not enough: it has to pass the check. A tie at the end means one tiebreaker round.</p>
+    <h3>The 10 reactions</h3>
+    <table class="rx-table"><thead><tr><th scope="col"><span class="sr-only">Emoji</span></th><th scope="col">Means</th><th scope="col">Counts as</th></tr></thead>
+      <tbody>${REACTIONS.slice(0, 5).map(x => row(x, true)).join('')}${REACTIONS.slice(5).map(x => row(x, false)).join('')}</tbody></table>
+    <p class="note">You can't react to your own post. Be fair: react to the photo, not the person.</p>
     <h3>Playing alone?</h3>
-    <p class="note">Pick <b>Solo</b>. Check your own photos honestly and beat your best time.</p>
-    <p class="safe" role="note">⚠️ Walk carefully. Do not run, climb, or touch dangerous objects.</p>
+    <p class="note">Pick <b>Practice</b>. Check your own photos honestly and beat your best time.</p>
+    <p class="safe" role="note">Walk carefully. Do not run, climb, or touch dangerous objects.</p>
   </div>`;
 }
 
 function scoresModal() {
-  return `<div class="modal" role="dialog" aria-modal="true" aria-label="Scoreboard"><button class="close" data-act="closeModal" aria-label="Close" data-autofocus>✕</button>${scoreboard()}</div>`;
+  return `<div class="modal" role="dialog" aria-modal="true" aria-label="Leaderboard"><button class="close" data-act="closeModal" aria-label="Close" data-autofocus>✕</button>${scoreboard()}</div>`;
 }
 
 function confirmModal() {
@@ -878,7 +857,7 @@ function render() {
   let html;
   const r = S.room;
   if (r) {
-    html = { lobby: viewLobby, choose: viewChoose, hunt: viewHunt, result: viewResult, final: r.solo ? viewSoloFinal : viewFinal }[r.phase]();
+    html = { lobby: viewLobby, hunt: viewHunt, result: viewResult, final: r.solo ? viewSoloFinal : viewFinal }[r.phase]();
   } else {
     html = S.ui.screen === 'home' ? viewHome() : viewIntro();
   }
@@ -949,7 +928,6 @@ function refreshError(id) {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && (S.modal || S.confirm)) closeModal();
   if (e.key === 'Enter' && e.target.id === 'cd') act('join');
-  if (e.key === 'Enter' && e.target.id === 'ti') act('typeItem');
 });
 
 document.addEventListener('click', e => {
@@ -961,7 +939,7 @@ document.addEventListener('click', e => {
 });
 
 // actions that make their own sound
-const QUIET = new Set(['vote', 'camera', 'retake', 'upload', 'sound', 'copy', 'avatar', 'set', 'suggest', 'rules', 'scores']);
+const QUIET = new Set(['vote', 'camera', 'retake', 'upload', 'sound', 'copy', 'avatar', 'set', 'rules', 'scores']);
 
 function openModal(kind) { S.modal = kind; S.modalAt = Date.now(); Sound.paper(); }
 function closeModal() {
@@ -1008,11 +986,11 @@ function act(a, d = {}) {
     case 'set':
       mark(`chip:${d.k}:${d.v}`); Sound.select();
       if (d.k === 'lobbySeats') { send({ t: 'settings', settings: { seats: Number(d.v) } }); return; }
-      u.settings[d.k] = ['seats', 'rounds', 'timer'].includes(d.k) ? Number(d.v) : d.v;
+      u.settings[d.k] = Number(d.v);
       savePrefs(); break;
     case 'create':
       if (needName()) return;
-      if (send({ t: 'create', name: u.name.trim(), avatar: u.avatar, settings: u.settings.seats === 1 ? { ...u.settings, mode: 'random' } : u.settings })) u.busy = true;
+      if (send({ t: 'create', name: u.name.trim(), avatar: u.avatar, settings: { seats: u.settings.seats } })) u.busy = true;
       setTimeout(() => { if (u.busy && !S.room) { u.busy = false; render(); } }, 6000);
       break;
     case 'join':
@@ -1046,11 +1024,6 @@ function act(a, d = {}) {
       if (c) act(c.action, { v: c.v, confirmed: '1' });
       return;
     }
-    case 'suggest': u.typeText = d.v; Sound.select(); break;
-    case 'typeItem':
-      if (!u.typeText.trim()) { toast('Type a home item first.', true); return; }
-      send({ t: 'typeItem', text: u.typeText.trim() });
-      return;
     case 'camera': cam.click(); return;
     case 'retake': u.capture = null; u.uploadError = ''; render(); cam.click(); return;
     case 'upload': {
@@ -1068,7 +1041,6 @@ function act(a, d = {}) {
       const rb = $('[data-act="retake"]'); if (rb) rb.disabled = true;
       return;
     }
-    case 'skip': send({ t: 'skip' }); return;
     case 'vote': {
       const r = S.room;
       mark(`vote:${r.reviewing}:${d.v}`); Sound.vote();

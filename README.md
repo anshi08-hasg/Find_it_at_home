@@ -1,6 +1,8 @@
-# 🔎 Find It at Home!
+# Find It at Home!
 
-*Find it. Click it. Upload it. Win it!*: a hybrid (50% physical, 50% digital) wellness hunt game for **2–6 players**, built from the *Find It at Home!* rulebook with a detective "case file" UI.
+*Find it. Click it. Upload it. Win it!*: a family **wellness** game for **2–6 players**, half physical (walking around your home to find healthy everyday objects) and half social media (posting a photo, reacting with emojis, a feed and a leaderboard). Live at https://find-it-at-home.onrender.com.
+
+The full Rule Book and game design document (players, goals, rules, space, time, resources, conflict) is kept as a shared doc; see `BUILD_LOG.md` for the link.
 
 ## Run it in VS Code
 
@@ -19,40 +21,41 @@
 > **Testing alone?** Open several browser tabs or windows. Each tab is its own player.
 > **Windows firewall** may ask to allow Node.js. Allow it on *private networks* so phones can connect.
 
-## How a game flows (matches the rulebook)
+## How a game flows
 
 | # | Screen | What happens |
 |---|---|---|
-| 01 | Intro | Tap **Play Game** |
-| 02 | Home | Host picks players (2–6), mode (Random / Type a Home Item), level, rounds, timer. Others **Join a case** with the 4-letter code |
-| 03 | Challenge | Everyone sees the same word / riddle / question (Level 1 Word Hunt · 2 Riddle Hunt · 3 Learn & Find · or Mixed) |
-| 04 | Search | Find it safely. *Can't find it?* Ask for a different case (2 per round) |
-| 05 | Photo | Tap the red camera seal. On phones it opens the camera |
-| 06 | Review | **Retake** or **Save & Upload** |
-| 07 | First upload | Big "FIRST UPLOAD" stamp. Others can still upload, and their photos join the queue in time order |
-| 08 | Emoji check | Everyone except the uploader votes: ✅👍💯🎯👏 yes · ❌👎 wrong · 🔄🔍 retake · 🤔 not sure (doesn't count) |
-| 09 | Scoreboard | Majority yes = **+1 point**. If it's rejected, the next earliest photo gets checked. Ties lead to a tiebreaker round |
+| 01 | Intro | Tap **Play Game**, or **Join a game** with a 4-letter code |
+| 02 | Setup | Name, one of 8 original animals, and the number of players (or **Practice** alone). Every game is 5 rounds of 2 minutes |
+| 03 | Clue | Everyone sees the same clue. The level climbs each round: Word Hunt → Riddle Hunt → Learn & Find (a health fact) |
+| 04 | Search | Walk (never run) and find it at home |
+| 05 | Post | Take a photo, then **Retake** or **Save** to post it |
+| 06 | React | Everyone else reacts with one of the 10 emojis: ✅👍💯🎯👏 say yes · ❌🔄🔍👎🤔 say no |
+| 07 | Verdict | Once everyone has reacted, more than half yes = approved, **+1 point**. Otherwise everyone keeps searching |
+| 08 | Wellness break | A short stretch, breath or sip of water, done together |
+| 09 | Final | Most points after 5 rounds wins; a tie is a shared win. The game feed shows every round's winning post |
 
-The host can close a vote early (🤔 counts as no vote) or end a round with no winner.
+The 10 reactions are the only emojis in the game; everything else is original artwork. The host can close the reactions early or end a round with no winner.
 
 ## Project structure
 
 ```
 find-it-at-home/
 ├── server.js        # HTTP + WebSocket game server (rooms, rounds, votes, scoring, timer)
-├── challenges.js    # Challenge bank for levels 1–3. Add your own items here!
+├── challenges.js    # Wellness clue bank for levels 1–3. Add your own items here!
 ├── public/
-│   ├── index.html
+│   ├── index.html   # page shell + original SVG art (8 animal avatars, icons)
 │   ├── style.css    # "Case file" design system (paper, kraft folders, stamps, grid paper)
 │   ├── app.js       # All screens + camera capture + live updates
-│   └── fonts/       # Black Ops One, Special Elite, Permanent Marker, Oswald (OFL), so it works offline
+│   ├── fx.js        # Synthesised sound effects, original music, confetti
+│   └── fonts/       # Bowlby One SC, Nunito Sans, Special Elite (OFL), so it works offline
 ```
 
 ## Customising
 
 - **Add challenges:** edit the lists in `challenges.js`.
 - **Colours / look:** change the tokens at the top of `public/style.css` (`--paper`, `--kraft`, `--red`…).
-- **Timer options / max rounds:** see the `create` handler in `server.js`.
+- **Rounds / timer:** `SETTINGS` near the top of `server.js`.
 
 ## Notes
 

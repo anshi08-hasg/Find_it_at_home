@@ -84,17 +84,17 @@ const bell = (f, at = 0, dur = .8, vol = .12) => {
 const pluck = (f, at = 0, vol = .15, dur = .25) => tone({ f, at, dur, vol, type: 'triangle', attack: .003 });
 
 // ---------- background music ----------
-// "The Chase": an original spy-chase cue, generated live. Three intensities:
-//   calm   (menus, lobby, photo checks, results) 112 bpm: walking bass, light hats, vibes
-//   hunt   (searching)                           132 bpm: full kit, chromatic spy bass riff,
-//                                                          muted-guitar stabs, a sly minor lead
-//   urgent (last 15 seconds of the timer)        144 bpm: 16th hats, lead every loop, busier fills
+// "The Chase": an original, upbeat detective groove, generated live. Two intensities:
+//   calm (menus, lobby, reactions, results, wellness breaks) 108 bpm: walking bass, light hats, vibes
+//   hunt (searching)                                         124 bpm: full kit, chromatic spy bass riff,
+//                                                                     muted-guitar stabs, a sly minor lead
+// Lively enough to be fun, never frantic: it is a wellness game, so nobody should feel rushed into running.
 // The harmony is a 4-bar loop Am | Gm | F | E, an Andalusian-style descent with a chromatic
 // approach note into each beat 3, which keeps it tense and "detective".
 // Notes are scheduled ~0.3s ahead on the audio clock, so the beat never drifts.
 const Music = (() => {
   const LEVEL = .5;
-  const BPM = { calm: 112, hunt: 132, urgent: 144 };
+  const BPM = { calm: 108, hunt: 124 };
   const midi = m => 440 * Math.pow(2, (m - 69) / 12);
   // spy bass riff, one bar per chord, eighth notes (0 = rest)
   const RIFF = [
@@ -162,24 +162,22 @@ const Music = (() => {
       if (v) { note(t, midi(v), { dur: 1.5, vol: .1, attack: .01 }); note(t, midi(v) * 4, { dur: .4, vol: .012 }); }
       return;
     }
-    const urgent = mood === 'urgent';
     // driving bass: the riff, doubled an octave up for bite
     const b = RIFF[bar][pos];
-    note(t, midi(b), { type: 'sawtooth', dur: eighth * .85, vol: .32, lp: urgent ? 1100 : 800 });
+    note(t, midi(b), { type: 'sawtooth', dur: eighth * .85, vol: .32, lp: 800 });
     note(t, midi(b - 12), { dur: eighth * .9, vol: .35 });
-    // kit: kick on 1, the "and" of 2 and 3; snare on 2 and 4; hats on every eighth (16ths when urgent)
+    // kit: kick on 1, the "and" of 2 and 3; snare on 2 and 4; hats on every eighth
     if (pos === 0 || pos === 3 || pos === 4) kick(t);
     if (pos === 2 || pos === 6) snare(t);
     hat(t, pos % 2 ? .09 : .06);
-    if (urgent) hat(half, .05);
     if (pos === 7 && bar === 3) hat(t, .08, true);
     // phrase-end fill: 16th snares into the top of the loop
-    if (bar === 3 && pos >= (urgent ? 4 : 6)) { snare(t, .22); snare(half, .26); }
+    if (bar === 3 && pos >= 6) { snare(t, .22); snare(half, .26); }
     // guitar stabs on the off-beats of 2 and 4
     if (pos === 3 || pos === 7) stab(t, CHORDS[bar]);
-    // lead hook: every other loop while hunting, every loop when time is running out
+    // lead hook: every other loop, so it stays fresh
     const h = HOOK[i % 32];
-    if (h && (urgent || loop % 2 === 1)) lead(t, h[0], h[1], eighth);
+    if (h && loop % 2 === 1) lead(t, h[0], h[1], eighth);
   }
 
   function tick() {
@@ -213,7 +211,7 @@ const Music = (() => {
       if (m === target || !BPM[m]) return;
       target = m;
       const toBar = (8 - (step % 8)) % 8;
-      if (!timer || toBar === 0 || m === 'urgent') mood = m;  // urgency kicks in immediately
+      if (!timer || toBar === 0) mood = m;
       else setTimeout(() => { mood = target; }, toBar * 60 / BPM[mood] / 2 * 1000);
     },
     // dip under a big moment (stamp, fanfare), then come back up

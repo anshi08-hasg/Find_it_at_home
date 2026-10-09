@@ -31,12 +31,13 @@ const server = http.createServer((req, res) => {
 });
 
 // ---------- constants ----------
+// the game's only emojis: five say yes, five do not
 const POSITIVE = ['✅', '👍', '💯', '🎯', '👏'];
-const WRONG = ['❌', '👎'];
-const RETAKE = ['🔄', '🔍'];
-const UNSURE = ['🤔'];
-const ALL_EMOJI = [...POSITIVE, ...WRONG, ...RETAKE, ...UNSURE];
-const MAX_SKIPS = 2;
+const ALL_EMOJI = [...POSITIVE, '❌', '🔄', '🔍', '👎', '🤔'];
+const AVATARS = ['fox', 'cat', 'dog', 'bear', 'panda', 'owl', 'frog', 'rabbit'];
+// one simple shape for every game: levels climb Word -> Riddle -> Learn, 5 rounds, 2 minutes each
+const SETTINGS = { level: 'mixed', rounds: 5, timer: 120 };
+const avatarOf = a => AVATARS.includes(a) ? a : AVATARS[0];
 
 const rooms = new Map();          // code -> room
 const sockets = new Map();        // ws -> { code, pid }
@@ -64,11 +65,8 @@ function publicState(room) {
     phase: room.phase,
     round: room.round,
     totalRounds: room.settings.rounds,
-    tiebreak: room.tiebreak,
-    chooserId: room.chooserId,
-    challenge: ch ? { level: ch.level, levelName: ch.levelName, text: ch.text, icon: ch.icon, typedBy: ch.typedBy, answer: reveal ? ch.answer : null } : null,
+    challenge: ch ? { level: ch.level, levelName: ch.levelName, text: ch.text, answer: reveal ? ch.answer : null } : null,
     endsAt: room.endsAt, remaining: room.remaining, serverNow: Date.now(),
-    skipsLeft: room.skipsLeft,
     reviewing: room.reviewing,
     players: room.players.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, score: p.score, won: p.won, connected: p.connected })),
     uploads: room.uploads.map(u => ({ id: u.id, pid: u.pid, at: u.at, status: u.status, votes: u.votes, oldPhoto: u.oldPhoto })),
@@ -119,48 +117,21 @@ function timeUp(room) {
 }
 
 // ---------- round flow ----------
-function levelForRound(room) {
-  const l = room.settings.level;
-  if (l === 'mixed') return ((room.round - 1) % 3) + 1;
-  return Number(l) || 1;
-}
+const levelForRound = room => ((room.round - 1) % 3) + 1;
 
 function startRound(room) {
   room.round += 1;
   room.uploads = [];
   room.reviewing = null;
   room.lastResult = null;
-  room.challenge = null;
-  room.skipsLeft = MAX_SKIPS;
   room.photos = new Map();
   clearTimer(room);
-  room.endsAt = null;
-  room.remaining = null;
-
-  if (room.settings.mode === 'type') {
-    // players take turns choosing the item
-    const order = connected(room);
-    const pool = order.length ? order : room.players;
-    room.chooserId = pool[(room.turn++) % pool.length].id;
-    room.phase = 'choose';
-  } else {
-    room.chooserId = null;
-    room.challenge = pick(levelForRound(room), room.used);
-    beginHunt(room);
-  }
-  sync(room);
-}
-
-function beginHunt(room) {
+  room.challenge = pick(levelForRound(room), room.used);
   room.phase = 'hunt';
   room.roundStart = Date.now();
-  room.remaining = room.settings.timer ? room.settings.timer * 1000 : null;
+  room.remaining = room.settings.timer * 1000;
   resumeTimer(room);
-}
-
-function canUpload(room, pid) {
-  if (room.tiebreak && !room.tiebreak.includes(pid)) return false;
-  return true;
+  sync(room);
 }
 
 function nextReview(room) {
@@ -183,29 +154,23 @@ function eligibleVoters(room, upload) {
   return room.players.filter(p => p.connected && p.id !== upload.pid);
 }
 
+// Rule: once everyone has reacted, the post is approved if more than half reacted with a yes emoji.
+// With nobody able to react, it is approved automatically.
 function checkVotes(room, force = false) {
   const u = room.uploads.find(x => x.id === room.reviewing);
   if (!u) return;
   const voters = eligibleVoters(room, u);
   const votes = voters.map(v => u.votes[v.id]).filter(Boolean);
-  const decisive = votes.filter(e => !UNSURE.includes(e));
-  const allDecided = voters.length === 0 || decisive.length === voters.length;
-  if (!allDecided && !force) return;
+  if (votes.length < voters.length && !force) return;
 
-  const pos = decisive.filter(e => POSITIVE.includes(e)).length;
-  const wrong = decisive.filter(e => WRONG.includes(e)).length;
-  const retake = decisive.filter(e => RETAKE.includes(e)).length;
-
-  // "Most of the other players must approve it." With no one able to vote, auto-approve.
-  if (voters.length === 0 || pos > voters.length / 2) {
+  const yes = votes.filter(e => POSITIVE.includes(e)).length;
+  if (voters.length === 0 || yes > voters.length / 2) {
     u.status = 'approved';
     return endRound(room, u);
   }
-  u.status = (retake > 0 && retake >= wrong) ? 'retake' : 'rejected';
+  u.status = 'rejected';
   const who = getPlayer(room, u.pid);
-  if (!room.solo) toast(room, u.status === 'retake'
-    ? `${who ? who.name : 'Player'} needs a clearer photo. Retake!`
-    : `${who ? who.name : 'That'}'s photo does not match. The next photo will be checked, so keep hunting!`);
+  if (!room.solo) toast(room, `${who ? who.name : 'That'}'s post was not approved. Keep searching!`);
   room.reviewing = null;
   nextReview(room);
   sync(room);
@@ -222,39 +187,27 @@ function endRound(room, upload) {
   }
   room.lastResult = { winnerId, uploadId: upload ? upload.id : null };
   room.history.push({
-    round: room.round, tiebreak: !!room.tiebreak,
+    round: room.round, level: room.challenge ? room.challenge.levelName : '',
     challenge: room.challenge ? room.challenge.text : '', answer: room.challenge ? room.challenge.answer : '',
-    winnerId, time: upload ? upload.at : null,
+    winnerId, uploadId: upload ? upload.id : null, time: upload ? upload.at : null,
   });
   room.phase = 'result';
-
-  // Was that the last round?
-  const regularDone = room.round >= room.settings.rounds;
-  if (regularDone) {
-    const top = Math.max(...room.players.map(p => p.score));
-    const leaders = room.players.filter(p => p.score === top);
-    room.pendingTiebreak = leaders.length > 1 ? leaders.map(p => p.id) : null;
-    room.finished = !room.pendingTiebreak;
-  }
+  // after the last round the game ends; equal top scores share the win
+  room.finished = room.round >= room.settings.rounds;
   sync(room);
 }
 
 function next(room) {
   if (room.phase !== 'result') return;
   if (room.finished) { room.phase = 'final'; return sync(room); }
-  if (room.pendingTiebreak) {
-    room.tiebreak = room.pendingTiebreak;
-    room.pendingTiebreak = null;
-    toast(room, 'Tie! One final tiebreaker round.');
-  }
   startRound(room);
 }
 
 function resetGame(room) {
   clearTimer(room);
   Object.assign(room, {
-    phase: 'lobby', round: 0, turn: 0, uploads: [], reviewing: null, challenge: null, chooserId: null,
-    tiebreak: null, pendingTiebreak: null, finished: false, history: [], lastResult: null,
+    phase: 'lobby', round: 0, uploads: [], reviewing: null, challenge: null,
+    finished: false, history: [], lastResult: null,
     endsAt: null, remaining: null, used: new Set(), photos: new Map(),
   });
   room.players = room.players.filter(p => p.connected);
@@ -279,17 +232,11 @@ const handlers = {
       code: newCode(),
       solo,
       seats: solo ? 1 : Math.min(6, Math.max(2, Number(s.seats) || 4)),
-      settings: {
-        // typing your own item to find would make solo trivial, so solo is always random
-        mode: s.mode === 'type' && !solo ? 'type' : 'random',
-        level: ['1', '2', '3', 'mixed'].includes(String(s.level)) ? String(s.level) : 'mixed',
-        rounds: Math.min(15, Math.max(1, Number(s.rounds) || 5)),
-        timer: [0, 60, 90, 120, 180].includes(Number(s.timer)) ? Number(s.timer) : 120,
-      },
-      players: [], hostId: null, skipsLeft: MAX_SKIPS,
+      settings: { ...SETTINGS },
+      players: [], hostId: null,
     };
     resetGame(room);
-    const p = { id: uid(), name: clean(m.name, 16) || 'Detective', avatar: clean(m.avatar, 4) || '🦊', score: 0, won: 0, connected: true };
+    const p = { id: uid(), name: clean(m.name, 16) || 'Detective', avatar: avatarOf(m.avatar), score: 0, won: 0, connected: true };
     room.players.push(p);
     room.hostId = p.id;
     rooms.set(room.code, room);
@@ -301,17 +248,17 @@ const handlers = {
 
   join(ws, m) {
     const room = rooms.get(String(m.code || '').toUpperCase().trim());
-    if (!room) return send(ws, { t: 'error', text: 'No case found with that code.' });
+    if (!room) return send(ws, { t: 'error', text: 'No game found with that code.' });
     if (room.phase !== 'lobby') return send(ws, { t: 'error', text: 'That game has already started.' });
-    if (room.solo) return send(ws, { t: 'error', text: 'That is a solo case. Ask them to start a group game.' });
+    if (room.solo) return send(ws, { t: 'error', text: 'That is a practice game for one. Ask them to start a group game.' });
     if (room.players.length >= room.seats) return send(ws, { t: 'error', text: 'That game room is full.' });
     const name = clean(m.name, 16) || 'Detective';
     if (room.players.some(p => p.name.toLowerCase() === name.toLowerCase()))
       return send(ws, { t: 'error', text: 'Someone already uses that name. Pick another.' });
-    const p = { id: uid(), name, avatar: clean(m.avatar, 4) || '🦊', score: 0, won: 0, connected: true };
+    const p = { id: uid(), name, avatar: avatarOf(m.avatar), score: 0, won: 0, connected: true };
     room.players.push(p);
     attach(ws, room, p);
-    toast(room, `${p.avatar} ${p.name} joined the case.`);
+    toast(room, `${p.name} joined the game.`);
     sync(room);
   },
 
@@ -328,10 +275,6 @@ const handlers = {
     if (room.phase !== 'lobby' || me.id !== room.hostId) return;
     const s = m.settings || {};
     if (s.seats) room.seats = Math.min(6, Math.max(room.players.length, 2, Number(s.seats)));
-    if (s.mode) room.settings.mode = s.mode === 'type' ? 'type' : 'random';
-    if (s.level) room.settings.level = ['1', '2', '3', 'mixed'].includes(String(s.level)) ? String(s.level) : room.settings.level;
-    if (s.rounds) room.settings.rounds = Math.min(15, Math.max(1, Number(s.rounds)));
-    if (s.timer != null && [0, 60, 90, 120, 180].includes(Number(s.timer))) room.settings.timer = Number(s.timer);
     sync(room);
   },
 
@@ -342,39 +285,11 @@ const handlers = {
     startRound(room);
   },
 
-  typeItem(ws, m, room, me) {
-    if (room.phase !== 'choose' || me.id !== room.chooserId) return;
-    const text = clean(m.text, 40).toUpperCase();
-    if (text.length < 2) return send(ws, { t: 'error', text: 'Type a home item first.' });
-    room.challenge = { level: 1, levelName: 'Type a Home Item', text, icon: '🏠', answer: text, typedBy: me.id };
-    beginHunt(room);
-    sync(room);
-  },
-
-  skip(ws, m, room, me) {
-    if (room.phase !== 'hunt' || room.reviewing) return;
-    if (room.uploads.length) return send(ws, { t: 'error', text: 'Evidence is already in. You can\'t change this case now.' });
-    if (room.skipsLeft <= 0) return send(ws, { t: 'error', text: 'No new cases left this round.' });
-    room.skipsLeft -= 1;
-    if (room.settings.mode === 'type') {
-      room.challenge = null;
-      room.phase = 'choose';
-      clearTimer(room);
-      room.endsAt = null;
-    } else {
-      room.challenge = pick(levelForRound(room), room.used);
-      beginHunt(room);
-    }
-    if (!room.solo) toast(room, `${me.name} asked for a different case.`);
-    sync(room);
-  },
-
   upload(ws, m, room, me) {
     if (room.phase !== 'hunt') return send(ws, { t: 'error', text: 'The round is over.' });
-    if (!canUpload(room, me.id)) return send(ws, { t: 'error', text: 'Only tied players hunt in the tiebreaker. You get to judge!' });
-    if (room.settings.timer && room.endsAt && Date.now() > room.endsAt) return send(ws, { t: 'error', text: 'Time is up!' });
+    if (room.endsAt && Date.now() > room.endsAt) return send(ws, { t: 'error', text: 'Time is up!' });
     if (room.uploads.some(u => u.pid === me.id && u.status === 'pending'))
-      return send(ws, { t: 'error', text: 'Your evidence is already waiting to be checked.' });
+      return send(ws, { t: 'error', text: 'Your post is already waiting for reactions.' });
     const data = String(m.photo || '');
     if (!data.startsWith('data:image/') || data.length > 4.5e6) return send(ws, { t: 'error', text: 'That photo could not be uploaded.' });
     const u = {
@@ -434,10 +349,6 @@ function afterDisconnect(room, me) {
   if (room.hostId === me.id || !getPlayer(room, room.hostId)) {
     const h = connected(room)[0];
     if (h) { room.hostId = h.id; toast(room, `${h.name} is now the host.`); }
-  }
-  if (room.phase === 'choose' && room.chooserId === me.id) {
-    const c = connected(room)[0];
-    if (c) room.chooserId = c.id;
   }
   if (room.reviewing) checkVotes(room);
   sync(room);

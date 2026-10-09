@@ -281,6 +281,59 @@ The background music was too gentle, so I replaced it with **"The Chase"**, an o
   - the two-player and solo games still pass
   - The music itself still needs a listen on a real phone.
 
+
+## 13. Fitting the assignment brief
+**Status:** not yet committed
+
+After a review against the Hybrid Game brief (wellness theme, 50% physical / 50% social media, at most 10 emojis, all game elements, rule book, keep it simple), I made these changes.
+
+**Rule Book and game design document:** written as a shared doc, [Find It at Home! Rule Book & Game Design](https://claude.ai/code/artifact/6e2eb782-bf2c-427c-a661-0f5b24c270cb).
+- Overview and target audience, and how the game meets each line of the brief.
+- The role of Players, Goals, Rules, Space, Time, Resources and Conflict.
+- The full Rule Book: setup, a round, scoring, the 10 emojis, safety and practice mode.
+- Media and originality.
+- A design-thinking record with marked spaces for the student's own playtests and faculty discussion.
+
+**Wellness:**
+- **Clue bank:** rewritten around healthy living: 30 Word Hunt objects, 20 Riddle Hunt riddles, and 20 Learn & Find health facts such as "Water helps your brain think clearly. Find something you drink water from."
+- **Wellness break:** after every round, a short activity everyone does together: stretch, three deep breaths, a sip of water, march on the spot.
+- **Calmer music:** the "last 15 seconds" rush is gone and the hunt tempo drops from 132 to 124 bpm. Nobody should feel rushed into running.
+- The intro now says "A family wellness game", and the final screen counts the wellness breaks done.
+
+**Social media:**
+- **Posts:** each upload is a post, with the poster's avatar, "posted first · 4.9s", the photo and a "Find: TOOTHBRUSH" caption.
+- **Reactions:** other players react with the emojis, and a tally (✅ 2 · 👍 1) shows under the post.
+- **Round feed:** this round's posts as a list, replacing the evidence table.
+- **Game feed:** the final screen shows a grid of every round's winning post.
+- **Leaderboard:** the scoreboard is renamed Leaderboard.
+
+**Only 10 emojis:**
+- The 10 reactions are now the only emojis anywhere in the game.
+- The 12 emoji avatars are replaced by **8 original SVG animals** (fox, cat, dog, bear, panda, owl, frog, rabbit).
+- The trophy, speaker, magnifier, level icons (search, riddle bubble, light bulb) and wellness heart are original SVG icons.
+- ▶ ⚠ 🚶 ⏱ and the clue icons are removed.
+
+**Simplified:**
+- **One mode:** Random only. Type a Home Item, its chooser screen and clue skips are removed from both client and server.
+- **Fixed game:** levels climb automatically and every game is 5 rounds of 2 minutes. Setup is now just name, animal and number of players.
+- **One voting rule:** once everyone has reacted, the post is approved if more than half reacted yes. 🤔 counts as no, and there's no separate retake or reject state.
+- **Ties:** a tie shares the win instead of starting a tiebreaker round. On the podium, block height follows rank, so tied players stand equally tall.
+- **Practice mode:** the single-player mode is now called Practice. It still saves a personal best.
+
+**Tested** with a new brief-compliance test: three players, a full 5-round game, in headless Chrome.
+- Setup offers only the player-count choice.
+- 1 yes + 1 no is not approved; 2 yes is approved; 🤔 + yes is not approved.
+- The wellness break shows after a round.
+- A 2–2 finish shows "share the win".
+- The game feed has 5 tiles.
+- Every screen was scanned for emojis: only the 10 reactions appear.
+- No layout problems at 360, 390, 430, 768, 1024 or 1440 px.
+- The two-player and practice suites still pass.
+- No console errors anywhere.
+- Fixed along the way: pale hint text on the kraft folder, and podium heights for tied players.
+
+**Still the student's to do:** real playtests with a child and a grandparent, and the faculty discussion, recorded in the design-thinking section of the doc.
+
 ---
 
 ## Known issues and to-dos
