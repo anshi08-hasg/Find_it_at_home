@@ -262,6 +262,25 @@ Working from a detailed redesign brief (written for players from children to gra
   - the full two-player game still passes with no errors
   - The music itself hasn't been listened to; that needs a real device.
 
+
+## 12. Energetic chase music
+The background music was too gentle, so I replaced it with **"The Chase"**, an original spy-chase cue. It's composed fresh, not borrowed from any famous theme, and still generated live in the browser.
+
+| Intensity | When | Tempo | Arrangement |
+|---|---|---|---|
+| Calm | Menus, lobby, photo checks, results | 112 bpm | Walking bass, light hi-hats, a kick on the downbeat, sparse vibraphone |
+| Hunt | Searching | 132 bpm | Full drum kit, a driving chromatic spy bass riff (Am → Gm → F → E with a push note into every beat 3), muted surf-guitar stabs, a sly minor-key lead hook every other loop, and a snare fill at each phrase end |
+| Urgent | Last 15 seconds of the timer | 144 bpm | Everything above plus 16th-note hi-hats, the hook on every loop and a longer fill |
+
+- About 50% louder than before, but still below the stamps and fanfares, which the music dips under.
+- Changes of intensity land on the next bar line so the groove never stumbles. Urgent kicks in immediately.
+- **Tested:**
+  - all three intensities play with no errors
+  - switching back and forth always settles on the latest mood
+  - the sound button and tab-hiding behaviour still work
+  - the two-player and solo games still pass
+  - The music itself still needs a listen on a real phone.
+
 ---
 
 ## Known issues and to-dos

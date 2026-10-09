@@ -84,25 +84,44 @@ const bell = (f, at = 0, dur = .8, vol = .12) => {
 const pluck = (f, at = 0, vol = .15, dur = .25) => tone({ f, at, dur, vol, type: 'triangle', attack: .003 });
 
 // ---------- background music ----------
-// A quiet sneaking-detective groove, generated live: a plucked bass walking down
-// Am - G - F - E (the classic mystery descent), a few soft vibraphone notes on top,
-// and in "hunt" mood, brushed hi-hats and a light snare that add some hurry.
-// Notes are scheduled ~0.3s ahead on the audio clock so timing never drifts.
+// "The Chase": an original spy-chase cue, generated live. Three intensities:
+//   calm   (menus, lobby, photo checks, results) 112 bpm: walking bass, light hats, vibes
+//   hunt   (searching)                           132 bpm: full kit, chromatic spy bass riff,
+//                                                          muted-guitar stabs, a sly minor lead
+//   urgent (last 15 seconds of the timer)        144 bpm: 16th hats, lead every loop, busier fills
+// The harmony is a 4-bar loop Am | Gm | F | E, an Andalusian-style descent with a chromatic
+// approach note into each beat 3, which keeps it tense and "detective".
+// Notes are scheduled ~0.3s ahead on the audio clock, so the beat never drifts.
 const Music = (() => {
-  const LEVEL = .32;                      // well under the sound effects
-  const EIGHTH = 60 / 96 / 2;             // 96 bpm
-  const SWING = [1.14, .86];              // a gentle shuffle: long-short eighths
+  const LEVEL = .5;
+  const BPM = { calm: 112, hunt: 132, urgent: 144 };
   const midi = m => 440 * Math.pow(2, (m - 69) / 12);
-  const BASS = [                          // one bar per chord, eighth notes, 0 = rest
-    [45, 0, 52, 0, 45, 48, 0, 52],        // Am
-    [43, 0, 50, 0, 43, 47, 0, 50],        // G
-    [41, 0, 48, 0, 41, 45, 0, 48],        // F
-    [40, 0, 47, 0, 40, 44, 0, 47],        // E
+  // spy bass riff, one bar per chord, eighth notes (0 = rest)
+  const RIFF = [
+    [45, 45, 48, 45, 51, 52, 48, 45],   // Am  with a D# -> E push
+    [43, 43, 46, 43, 49, 50, 46, 43],   // Gm  with a C# -> D push
+    [41, 41, 45, 41, 47, 48, 45, 41],   // F   with a B  -> C push
+    [40, 40, 44, 40, 47, 52, 50, 47],   // E   climbing back to the top
   ];
-  const VIBES = { 2: 76, 11: 74, 18: 72, 26: 71, 30: 68 }; // step in the 32-step loop -> note
-  let bus = null, timer = null, next = 0, step = 0, mood = 'calm';
+  // relaxed walking bass for calm mood
+  const WALK = [
+    [45, 0, 52, 0, 45, 48, 0, 52],
+    [43, 0, 50, 0, 43, 46, 0, 50],
+    [41, 0, 48, 0, 41, 45, 0, 48],
+    [40, 0, 47, 0, 40, 44, 0, 47],
+  ];
+  const CHORDS = [[57, 60, 64], [55, 58, 62], [53, 57, 60], [52, 56, 59]];
+  // the lead hook: step (0-31 across the 4 bars) -> [note, length in eighths]
+  const HOOK = {
+    0: [76, 1], 2: [79, 1], 3: [81, 2], 6: [76, 1],
+    8: [74, 1], 10: [70, 1], 11: [74, 2], 14: [67, 1],
+    16: [72, 1], 18: [69, 1], 19: [72, 1], 21: [77, 2],
+    24: [76, 1], 25: [75, 1], 26: [76, 1], 28: [68, 1], 30: [71, 2],
+  };
+  const VIBES = { 2: 76, 11: 74, 18: 72, 26: 71, 30: 68 };
+  let bus = null, timer = null, next = 0, step = 0, mood = 'calm', target = 'calm';
 
-  function note(t, f, { type = 'sine', dur = .3, vol = .2, attack = .006, lp } = {}) {
+  function note(t, f, { type = 'sine', dur = .3, vol = .2, attack = .005, lp } = {}) {
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = type; o.frequency.value = f;
     env(g, t, vol, attack, dur);
@@ -111,27 +130,66 @@ const Music = (() => {
     n.connect(g).connect(bus);
     o.start(t); o.stop(t + dur + .05);
   }
-  function brush(t, f, dur, vol, type = 'highpass') {
+  function hiss(t, f, dur, vol, type = 'highpass', q = 1) {
     const src = ctx.createBufferSource(); src.buffer = noise;
-    const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f;
+    const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
     const g = ctx.createGain(); env(g, t, vol, .002, dur);
     src.connect(fl).connect(g).connect(bus);
     src.start(t, Math.random() * 1.5); src.stop(t + dur + .05);
   }
-  function play(i, t) {
-    const pos = i % 8, b = BASS[(i >> 3) % 4][pos];
-    if (b) { note(t, midi(b), { type: 'triangle', dur: .3, vol: .5, lp: 650 }); note(t, midi(b + 12), { dur: .12, vol: .08 }); }
-    const v = VIBES[i % 32];
-    if (v) { note(t, midi(v), { dur: 1.8, vol: .1, attack: .01 }); note(t, midi(v) * 4, { dur: .5, vol: .012 }); }
-    if (mood === 'hunt') {
-      if (pos % 2) brush(t, 7000, .05, .07);                       // hi-hat on the off-beats
-      if (pos === 2 || pos === 6) brush(t, 1800, .1, .05, 'bandpass'); // brushed snare on 2 and 4
+  // a tight drum kit
+  const kick = (t, v = .9) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + .12); env(g, t, v, .002, .22); o.connect(g).connect(bus); o.start(t); o.stop(t + .3); };
+  const snare = (t, v = .32) => { hiss(t, 1900, .13, v, 'bandpass', .8); note(t, 190, { dur: .07, vol: v * .5 }); };
+  const hat = (t, v = .1, open = false) => hiss(t, 8000, open ? .16 : .035, v);
+  // muted surf-guitar chord stab
+  const stab = (t, chord, v = .045) => chord.forEach(m => note(t, midi(m + 12), { type: 'square', dur: .08, vol: v, lp: 1900 }));
+  // lead: a twangy square through a low-pass, with a soft sine an octave down for body
+  const lead = (t, m, len, eighth, v = .085) => {
+    const dur = Math.max(.12, len * eighth * .9);
+    note(t, midi(m), { type: 'square', dur, vol: v, lp: 2400 });
+    note(t, midi(m - 12), { dur, vol: v * .6 });
+  };
+
+  function play(i, t, eighth) {
+    const pos = i % 8, bar = (i >> 3) % 4, loop = i >> 5;
+    const half = t + eighth / 2;
+    if (mood === 'calm') {
+      const b = WALK[bar][pos];
+      if (b) note(t, midi(b), { type: 'triangle', dur: .28, vol: .5, lp: 700 });
+      if (pos === 0) kick(t, .5);
+      if (pos % 2) hat(t, .06);
+      const v = VIBES[i % 32];
+      if (v) { note(t, midi(v), { dur: 1.5, vol: .1, attack: .01 }); note(t, midi(v) * 4, { dur: .4, vol: .012 }); }
+      return;
     }
+    const urgent = mood === 'urgent';
+    // driving bass: the riff, doubled an octave up for bite
+    const b = RIFF[bar][pos];
+    note(t, midi(b), { type: 'sawtooth', dur: eighth * .85, vol: .32, lp: urgent ? 1100 : 800 });
+    note(t, midi(b - 12), { dur: eighth * .9, vol: .35 });
+    // kit: kick on 1, the "and" of 2 and 3; snare on 2 and 4; hats on every eighth (16ths when urgent)
+    if (pos === 0 || pos === 3 || pos === 4) kick(t);
+    if (pos === 2 || pos === 6) snare(t);
+    hat(t, pos % 2 ? .09 : .06);
+    if (urgent) hat(half, .05);
+    if (pos === 7 && bar === 3) hat(t, .08, true);
+    // phrase-end fill: 16th snares into the top of the loop
+    if (bar === 3 && pos >= (urgent ? 4 : 6)) { snare(t, .22); snare(half, .26); }
+    // guitar stabs on the off-beats of 2 and 4
+    if (pos === 3 || pos === 7) stab(t, CHORDS[bar]);
+    // lead hook: every other loop while hunting, every loop when time is running out
+    const h = HOOK[i % 32];
+    if (h && (urgent || loop % 2 === 1)) lead(t, h[0], h[1], eighth);
   }
+
   function tick() {
     if (!ctx || ctx.state !== 'running') return;
-    if (next < ctx.currentTime) next = ctx.currentTime + .05;      // catch up after a stall instead of bursting
-    while (next < ctx.currentTime + .3) { play(step, next); next += EIGHTH * SWING[step % 2]; step++; }
+    if (next < ctx.currentTime) next = ctx.currentTime + .05;        // catch up after a stall instead of bursting
+    while (next < ctx.currentTime + .3) {
+      const eighth = 60 / BPM[mood] / 2;
+      play(step, next, eighth);
+      next += eighth; step++;
+    }
   }
   const wanted = () => musicOn && !muted && !document.hidden && ctx && ctx.state === 'running';
 
@@ -141,7 +199,7 @@ const Music = (() => {
       if (wanted() && !timer) {
         if (!bus) { bus = ctx.createGain(); bus.gain.value = 0; bus.connect(out); }
         bus.gain.cancelScheduledValues(ctx.currentTime);
-        bus.gain.setTargetAtTime(LEVEL, ctx.currentTime, .8);
+        bus.gain.setTargetAtTime(LEVEL, ctx.currentTime, .5);
         next = ctx.currentTime + .1; step = 0;
         timer = setInterval(tick, 90);
         tick();
@@ -150,16 +208,24 @@ const Music = (() => {
         if (bus && ctx) { bus.gain.cancelScheduledValues(ctx.currentTime); bus.gain.setTargetAtTime(0, ctx.currentTime, .08); }
       }
     },
-    mood(m) { mood = m; },
+    // switching intensity lands on the next bar line so the groove never stumbles
+    mood(m) {
+      if (m === target || !BPM[m]) return;
+      target = m;
+      const toBar = (8 - (step % 8)) % 8;
+      if (!timer || toBar === 0 || m === 'urgent') mood = m;  // urgency kicks in immediately
+      else setTimeout(() => { mood = target; }, toBar * 60 / BPM[mood] / 2 * 1000);
+    },
     // dip under a big moment (stamp, fanfare), then come back up
     duck(ms = 3000) {
       if (!bus || !ctx || !timer) return;
       const t = ctx.currentTime;
       bus.gain.cancelScheduledValues(t);
       bus.gain.setTargetAtTime(LEVEL * .2, t, .08);
-      bus.gain.setTargetAtTime(LEVEL, t + ms / 1000, .6);
+      bus.gain.setTargetAtTime(LEVEL, t + ms / 1000, .5);
     },
     playing: () => !!timer,
+    current: () => mood,
   };
 })();
 

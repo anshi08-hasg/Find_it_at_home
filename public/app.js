@@ -104,6 +104,11 @@ function pop(key) {
 }
 const mark = key => S.fx.set(key, Date.now());
 function later(ms, fn) { S.timeline.push(setTimeout(fn, ms)); }
+// calm on menus and checks, the chase while hunting, and faster still in the last 15 seconds
+function musicMood(r) {
+  if (!r || r.phase !== 'hunt' || r.reviewing) return 'calm';
+  return r.endsAt && r.endsAt - now() < 15000 ? 'urgent' : 'hunt';
+}
 function clearTimeline() { S.timeline.forEach(clearTimeout); S.timeline = []; }
 
 const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
@@ -886,7 +891,7 @@ function render() {
     if (key === 'intro') later(620, Sound.stamp);
     else if (key.startsWith('home')) Sound.paper();
   }
-  Music.mood(r && r.phase === 'hunt' && !r.reviewing ? 'hunt' : 'calm');
+  Music.mood(musicMood(r));
   const since = Date.now() - S.view.at;
   const app = $('#app');
   app.classList.toggle('enter', since < 4500);
@@ -915,6 +920,7 @@ setInterval(() => {
   const left = r.endsAt - now(), total = r.settings.timer * 1000;
   const t = $('#timer'), b = $('#bar');
   if (t) { t.textContent = mmss(left); t.classList.toggle('low', left < 15000); }
+  Music.mood(musicMood(r));
   const sec = Math.ceil(left / 1000);
   if (sec >= 1 && sec <= 10 && sec !== S.lastTick) { S.lastTick = sec; Sound.tick(sec <= 5); }
   if (b) b.style.width = Math.max(0, Math.min(100, left / total * 100)) + '%';
