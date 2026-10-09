@@ -334,6 +334,26 @@ After a review against the Hybrid Game brief (wellness theme, 50% physical / 50%
 
 **Still the student's to do:** real playtests with a child and a grandparent, and the faculty discussion, recorded in the design-thinking section of the doc.
 
+
+## 14. No overlapping or overflowing text
+**Problem:** "Practice" stuck out of its button on phones. The earlier layout audit only caught elements wider than the screen. It missed text spilling out of its own box and text overlapping other text.
+
+**Fixes:**
+- **Player count:** 2–6 share one row. On phones **Practice** gets its own full-width button above them, and it sits first in the row on wider screens. Chip labels never wrap.
+- **Intro:** the title's second line no longer touches the tagline.
+- **Clue card:** the big clue word no longer touches "Find this object". All clue words, up to a 38-character item, fit inside the card with no word split in half.
+- **Emoji buttons:** emojis no longer overlap their labels.
+- **Leaderboard:** fixed column widths, so long names wrap inside their own column instead of pushing "Points" out of the card. Headers are tidied on phones, and below 360px the small avatar is hidden to give names room.
+- **Lobby:** long player names are shortened with "…" instead of overlapping their neighbours.
+- **Dialogs:** dialog headings stay clear of the ✕ close button.
+- **Game feed:** keeps two tiles per row on small phones.
+
+**Tested** with a new whole-app text audit in headless Chrome (a test script, not part of the repo).
+- It plays every screen and state: intro, setup in all 6 player counts, name and code errors, lobby, all three clue levels, photo preview, own post, reacting, voted, the "found it too" folder, not approved, round result, leaderboard and How to Play dialogs, confirmations, an unsolved round, the final screen, and practice mode.
+- It uses long names like "Bartholomew-Jnr." and "Konstantinoupoli", at 320, 360, 390, 430, 768, 1024 and 1440 px.
+- It checks that every line of text sits inside the box that draws it, that no two pieces of text overlap, that nothing is cut off by a container's edge (deliberate "…" excepted), and that the page never scrolls sideways.
+- Result: 224 checks, no problems, no console errors. The brief, two-player and practice suites still pass.
+
 ---
 
 ## Known issues and to-dos

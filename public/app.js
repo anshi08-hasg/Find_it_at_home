@@ -387,7 +387,7 @@ function scoreboard(title = 'Leaderboard') {
   return `<section class="grid-paper scoreboard" aria-label="${esc(title)}">
     <div class="score-head"><h2 class="h2">${esc(title)}</h2><span class="eyebrow">${r.phase === 'final' ? plural(r.history.length, 'round') : `Round ${r.round || 0} of ${r.totalRounds}`}</span></div>
     <table class="score-table">
-      <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col" class="num">Wins</th><th scope="col" class="num">Points</th></tr></thead>
+      <thead><tr><th scope="col" class="col-rank">Rank</th><th scope="col">Player</th><th scope="col" class="num">Wins</th><th scope="col" class="num">Points</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   </section>`;
