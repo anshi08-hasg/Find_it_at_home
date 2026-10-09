@@ -436,7 +436,12 @@ function afterDisconnect(room, me) {
 // ---------- websocket wiring ----------
 const wss = new WebSocketServer({ server, maxPayload: 6 * 1024 * 1024 });
 
+const lanIps = () => Object.values(os.networkInterfaces()).flat()
+  .filter(i => i && i.family === 'IPv4' && !i.internal).map(i => i.address);
+
 wss.on('connection', ws => {
+  const ip = lanIps()[0];
+  if (ip) send(ws, { t: 'hello', lan: `http://${ip}:${PORT}` });
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
   ws.on('message', raw => {
@@ -489,8 +494,7 @@ setInterval(() => {
 }, 20000);
 
 server.listen(PORT, '0.0.0.0', () => {
-  const ips = Object.values(os.networkInterfaces()).flat()
-    .filter(i => i && i.family === 'IPv4' && !i.internal).map(i => i.address);
+  const ips = lanIps();
   console.log('\n  🔎  FIND IT AT HOME! is running\n');
   console.log(`  On this computer:   http://localhost:${PORT}`);
   ips.forEach(ip => console.log(`  On phones (Wi-Fi): http://${ip}:${PORT}`));

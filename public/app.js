@@ -87,6 +87,10 @@ const SFX = {
 };
 const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
 
+// invite links must work on other devices, so swap localhost for the Wi-Fi address
+const shareBase = () =>
+  /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) && S.lan ? S.lan : location.origin;
+
 // ---------- network ----------
 function connect() {
   const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
@@ -109,6 +113,7 @@ function connect() {
 
 function onMessage(m) {
   switch (m.t) {
+    case 'hello': S.lan = m.lan; render(); break;
     case 'state': {
       const prev = S.room;
       S.room = m.room; S.you = m.you;
@@ -290,7 +295,7 @@ function viewHome() {
   const u = S.ui, s = u.settings, host = u.tab === 'host';
   const common = `
     <div class="field"><label class="label" for="nm">Detective name</label>
-      <input class="input" id="nm" data-model="name" maxlength="16" autocomplete="nickname" placeholder="e.g. Sourajeet" value="${esc(u.name)}"></div>
+      <input class="input" id="nm" data-model="name" maxlength="16" autocomplete="nickname" placeholder="Enter your name" value="${esc(u.name)}"></div>
     <div class="field"><div class="label">Pick your avatar</div>
       <div class="avatars">${AVATARS.map(a => `<button class="avatar-opt" data-act="avatar" data-v="${a}" aria-pressed="${a === u.avatar}" aria-label="Avatar ${a}">${a}</button>`).join('')}</div></div>`;
   const hostForm = `
@@ -321,7 +326,7 @@ function viewHome() {
 }
 
 function viewLobby() {
-  const r = S.room, url = `${location.origin}/join/${r.code}`;
+  const r = S.room, base = shareBase(), url = `${base}/join/${r.code}`;
   const slots = [];
   for (let i = 0; i < Math.max(r.seats, r.players.length); i++) {
     const p = r.players[i];
@@ -336,7 +341,7 @@ function viewLobby() {
       <span class="tag">CASE ${esc(r.code)}</span>
       <button class="btn btn-dark btn-sm" data-act="copy" data-v="${esc(url)}">Copy invite link</button>
     </div>
-    <p class="join-url">Everyone opens <b>${esc(location.host)}</b> → <b>Join a case</b> → code <b>${esc(r.code)}</b><br>or goes to ${esc(url)}</p>
+    <p class="join-url">Everyone opens <b>${esc(base.replace(/^https?:\/\//, ''))}</b> → <b>Join a case</b> → code <b>${esc(r.code)}</b><br>or goes to ${esc(url)}</p>
     <section class="folder" data-tab="Detectives · ${n}/${r.seats}">
       <div class="suspects">${slots.join('')}</div>
     </section>
