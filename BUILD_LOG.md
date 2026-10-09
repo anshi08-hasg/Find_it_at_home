@@ -80,7 +80,7 @@ Also:
 - Checked with headless Chrome screenshots of the setup screen.
 
 ## 8. Animation and sound
-**Status:** not yet committed
+**Commit:** `c981974`
 
 **Motion rule:** things move only when something happens.
 - The page redraws on every server update. Before this change, the screen slide-in and the "SOLVED!" stamp replayed on every vote or player update.
