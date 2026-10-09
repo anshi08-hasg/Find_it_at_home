@@ -593,11 +593,11 @@ function captureBlock() {
     return `<section class="stack capture">
       <figure class="polaroid develop${u.busy ? ' sent' : ''}"${fxa('cap:' + u.capId)}><span class="tape"></span><img src="${u.capture}" alt="Your photo"><figcaption>Your photo</figcaption></figure>
       <p class="help light center">Can you clearly see the object? If not, take it again.</p>
-      ${u.uploadError ? `<div class="alert" role="alert"><b>Upload failed.</b> ${esc(u.uploadError)} Tap <b>Save &amp; Upload</b> to try again.</div>` : ''}
+      ${u.uploadError ? `<div class="alert" role="alert"><b>Upload failed.</b> ${esc(u.uploadError)} Tap <b>Save</b> to try again.</div>` : ''}
       ${u.busy && u.slow ? `<p class="help light center" role="status">Still uploading… a weak connection can take a little longer.</p>` : ''}
       <div class="btn-row">
-        <button class="btn btn-paper btn-2line" data-act="retake" ${u.busy ? 'disabled' : ''}><span>🔄 Retake</span><small>Take a new photo</small></button>
-        <button class="btn btn-red btn-2line" data-act="upload" ${u.busy ? 'disabled aria-busy="true"' : ''}>${u.busy ? '<span><i class="spin" aria-hidden="true"></i> Uploading…</span><small>Please wait</small>' : '<span>📤 Save &amp; Upload</span><small>Send it to be checked</small>'}</button>
+        <button class="btn btn-paper" data-act="retake" ${u.busy ? 'disabled' : ''}>🔄 Retake</button>
+        <button class="btn btn-red" data-act="upload" ${u.busy ? 'disabled aria-busy="true"' : ''}>${u.busy ? '<i class="spin" aria-hidden="true"></i> Saving…' : '✓ Save'}</button>
       </div>
     </section>`;
   }
@@ -1046,7 +1046,7 @@ function act(a, d = {}) {
       if (pola) pola.classList.add('sending');
       Sound.whoosh();
       const btn = $('[data-act="upload"]');
-      if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.innerHTML = '<span><i class="spin" aria-hidden="true"></i> Uploading…</span><small>Please wait</small>'; }
+      if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.innerHTML = '<i class="spin" aria-hidden="true"></i> Saving…'; }
       const rb = $('[data-act="retake"]'); if (rb) rb.disabled = true;
       return;
     }
