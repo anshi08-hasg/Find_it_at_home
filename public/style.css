@@ -8,6 +8,8 @@
 @font-face { font-family: 'Black Ops One'; src: url(fonts/black-ops-one-latin-400-normal.woff2) format('woff2'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Special Elite'; src: url(fonts/special-elite-latin-400-normal.woff2) format('woff2'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Permanent Marker'; src: url(fonts/permanent-marker-latin-400-normal.woff2) format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Courier Prime'; src: url(fonts/courier-prime-latin-400-normal.woff2) format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Courier Prime'; src: url(fonts/courier-prime-latin-700-normal.woff2) format('woff2'); font-weight: 700; font-display: swap; }
 @font-face { font-family: 'Oswald'; src: url(fonts/oswald-latin-500-normal.woff2) format('woff2'); font-weight: 500; font-display: swap; }
 @font-face { font-family: 'Oswald'; src: url(fonts/oswald-latin-700-normal.woff2) format('woff2'); font-weight: 700; font-display: swap; }
 
@@ -15,7 +17,7 @@
   --desk: #14100d;
   --desk-2: #241a12;
   --ink: #2b1d12;
-  --ink-soft: #5a4632;
+  --ink-soft: #4d3a28;
   --paper: #efe3c8;
   --paper-2: #e3d2ad;
   --paper-edge: #c9b385;
@@ -31,7 +33,8 @@
   --shadow: 0 10px 30px rgba(0,0,0,.55), 0 2px 4px rgba(0,0,0,.4);
 
   --f-stencil: 'Black Ops One', 'Impact', system-ui, sans-serif;
-  --f-type: 'Special Elite', 'Courier New', monospace;
+  --f-type: 'Courier Prime', 'Courier New', monospace;
+  --f-deco: 'Special Elite', 'Courier New', monospace;
   --f-hand: 'Permanent Marker', 'Comic Sans MS', cursive;
   --f-poster: 'Oswald', 'Arial Narrow', sans-serif;
 
@@ -44,10 +47,15 @@ body {
   background: var(--desk);
   color: var(--ink);
   font-family: var(--f-type);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-synthesis-weight: none; /* display faces ship one weight; never smear them with faux bold */
   -webkit-tap-highlight-color: transparent;
   overflow-x: hidden;
 }
 button, input { font: inherit; color: inherit; }
+p { line-height: 1.5; }
 button { cursor: pointer; }
 :focus-visible { outline: 3px dashed var(--gold); outline-offset: 3px; }
 
@@ -134,7 +142,7 @@ button { cursor: pointer; }
 .hand { font-family: var(--f-hand); }
 .poster { font-family: var(--f-poster); text-transform: uppercase; letter-spacing: 1px; }
 .muted { color: var(--ink-soft); }
-.label { font-family: var(--f-poster); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 8px; }
+.label { display: block; font-family: var(--f-poster); font-weight: 700; font-size: 13px; line-height: 1.2; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink); margin: 0 0 10px; }
 h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; color: var(--ink); }
 .rule { border: 0; border-top: 2px solid var(--ink); margin: 14px 0; position: relative; }
 .rule::before, .rule::after { content: ''; position: absolute; top: -7px; width: 2px; height: 12px; background: var(--ink); }
@@ -186,18 +194,18 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
 /* ---------- intro ---------- */
 .intro { justify-content: center; min-height: 100vh; min-height: 100dvh; gap: 26px; }
 .intro-hero { position: relative; padding: 36px 22px 30px; text-align: center; }
-.intro-hero .file-no { position: absolute; top: 14px; left: 16px; font-size: 12px; letter-spacing: 1px; }
+.intro-hero .file-no { position: absolute; top: 14px; left: 16px; font-family: var(--f-deco); font-size: 13px; letter-spacing: 1px; }
 .intro-hero .conf { position: absolute; top: 18px; right: 10px; font-size: 13px; }
 .game-title { font-family: var(--f-stencil); font-size: clamp(46px, 15vw, 76px); line-height: .92; color: var(--ink); margin: 18px 0 10px; text-shadow: 2px 2px 0 rgba(179,38,30,.25); }
 .game-title span { display: block; color: var(--red); }
-.tagline { font-size: 16px; margin: 6px 0 0; }
+.tagline { font-family: var(--f-deco); font-size: 17px; margin: 6px 0 0; }
 .magnifier {
   width: 108px; height: 108px; margin: 4px auto 0; position: relative;
   animation: sweep 5s ease-in-out infinite;
 }
 @keyframes sweep { 0%,100% { transform: translate(-14px, 0) rotate(-6deg); } 50% { transform: translate(14px, -6px) rotate(6deg); } }
 .intro-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 20px; }
-.intro-meta div { border-top: 2px solid var(--ink); padding-top: 6px; font-size: 12px; }
+.intro-meta div { border-top: 2px solid var(--ink); padding-top: 6px; font-size: 13px; line-height: 1.3; }
 .intro-meta b { display: block; font-family: var(--f-poster); font-size: 15px; letter-spacing: 1px; text-transform: uppercase; }
 
 /* luggage tag (moodboard: CASE 02) */
@@ -212,17 +220,18 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
 .tag::before { content: ''; position: absolute; left: 14px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--desk); box-shadow: 0 0 0 3px #a37d43; }
 
 /* ---------- form controls ---------- */
-.field { margin-bottom: 18px; }
+.field { margin-bottom: 24px; }
 .input {
-  width: 100%; padding: 13px 14px; font-size: 18px;
+  width: 100%; padding: 13px 14px; font-size: 18px; line-height: 1.3;
   background: rgba(255,255,255,.55); border: 0; border-bottom: 3px solid var(--ink);
   border-radius: 3px 3px 0 0; font-family: var(--f-type);
 }
+.input::placeholder { color: var(--ink-soft); opacity: .6; }
 .input.code { font-family: var(--f-stencil); letter-spacing: 10px; text-transform: uppercase; text-align: center; font-size: 30px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   border: 2px solid var(--ink); background: transparent; border-radius: 999px;
-  padding: 8px 14px; font-family: var(--f-poster); font-size: 15px; letter-spacing: 1px; text-transform: uppercase; min-width: 46px;
+  padding: 9px 16px; font-family: var(--f-poster); font-weight: 500; font-size: 16px; line-height: 1.2; letter-spacing: .6px; text-transform: uppercase; min-width: 48px;
 }
 .chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .avatars { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
@@ -235,11 +244,12 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
 .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .mode-card {
   text-align: left; border: 2px solid var(--ink); background: rgba(255,255,255,.3);
-  padding: 12px; border-radius: 4px; position: relative;
+  padding: 14px; border-radius: 4px; position: relative;
+  display: flex; flex-direction: column; justify-content: flex-start;
 }
-.mode-card b { display: block; font-family: var(--f-stencil); font-size: 16px; margin-bottom: 4px; }
-.mode-card small { font-size: 12px; line-height: 1.35; display: block; }
-.mode-card .ex { margin-top: 8px; font-family: var(--f-poster); letter-spacing: 1px; font-size: 13px; color: var(--red); }
+.mode-card b { display: block; font-family: var(--f-stencil); font-weight: 400; font-size: 17px; line-height: 1.2; margin-bottom: 6px; }
+.mode-card small { font-size: 14px; line-height: 1.45; letter-spacing: -.2px; display: block; }
+.mode-card .ex { margin-top: auto; padding-top: 10px; font-family: var(--f-poster); font-weight: 700; letter-spacing: .8px; font-size: 14px; color: var(--red); }
 .mode-card[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .mode-card[aria-pressed="true"] .ex { color: var(--gold); }
 
@@ -255,7 +265,7 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
 
 /* ---------- lobby ---------- */
 .lobby-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.join-url { font-size: 13px; color: var(--paper); opacity: .85; word-break: break-all; }
+.join-url { font-size: 14px; line-height: 1.5; color: var(--paper); opacity: .85; word-break: break-all; }
 .suspects { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .suspect {
   background: var(--noise), linear-gradient(180deg, #f3e8d0, #ddc8a0);
@@ -270,13 +280,13 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
   box-shadow: inset 0 0 20px rgba(0,0,0,.6);
 }
 .suspect .name { font-family: var(--f-poster); text-transform: uppercase; letter-spacing: 1px; margin-top: 6px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.suspect .role { font-size: 10px; letter-spacing: 1px; color: var(--red); }
+.suspect .role { font-size: 12px; letter-spacing: 1px; color: var(--red); }
 .suspect.empty .mug { background: #e9e1cf; border: 2px solid #222; font-family: var(--f-poster); font-size: 30px; color: #888; }
 .suspect.empty .name { color: #777; }
 .suspect.offline { opacity: .5; }
 .pin { position: absolute; top: -6px; left: 50%; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ff7b6b, var(--red) 60%, #5c0f0b); box-shadow: 0 2px 3px rgba(0,0,0,.5); z-index: 1; }
 .settings-summary { display: flex; flex-wrap: wrap; gap: 8px; }
-.settings-summary span { font-family: var(--f-poster); text-transform: uppercase; font-size: 12px; letter-spacing: 1px; border: 1.5px solid var(--ink); padding: 4px 8px; border-radius: 3px; }
+.settings-summary span { font-family: var(--f-poster); text-transform: uppercase; font-size: 13px; letter-spacing: .6px; border: 1.5px solid var(--ink); padding: 5px 9px; border-radius: 3px; }
 
 /* ---------- case file (challenge) ---------- */
 .casefile { position: relative; overflow: hidden; }
@@ -327,10 +337,10 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
 
 /* evidence log (moodboard: keycard record) */
 .log { width: 100%; border-collapse: collapse; font-size: 13px; }
-.log th { font-family: var(--f-poster); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; text-align: left; border-bottom: 2px solid var(--ink); padding: 6px 4px; }
+.log th { font-family: var(--f-poster); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; text-align: left; border-bottom: 2px solid var(--ink); padding: 6px 4px; }
 .log td { border-bottom: 1px dashed rgba(43,29,18,.35); padding: 8px 4px; vertical-align: middle; }
 .log tr.hl td { color: var(--red); }
-.badge { font-family: var(--f-poster); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; padding: 3px 7px; border-radius: 3px; border: 1.5px solid currentColor; white-space: nowrap; }
+.badge { font-family: var(--f-poster); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; padding: 3px 7px; border-radius: 3px; border: 1.5px solid currentColor; white-space: nowrap; }
 .badge.approved { color: var(--green); }
 .badge.rejected { color: var(--red); }
 .badge.retake { color: #b26a00; }
@@ -362,7 +372,7 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
 .score-head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #33475a; padding-bottom: 6px; margin-bottom: 8px; }
 .score-head .stencil { font-size: 22px; }
 .score-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.score-table th { font-family: var(--f-poster); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; text-align: left; color: #33475a; padding: 6px 4px; border-bottom: 1.5px solid #33475a; }
+.score-table th { font-family: var(--f-poster); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; text-align: left; color: #33475a; padding: 6px 4px; border-bottom: 1.5px solid #33475a; }
 .score-table td { padding: 9px 4px; border-bottom: 1px solid rgba(51,71,90,.25); vertical-align: middle; }
 .score-table .rank { font-family: var(--f-hand); font-size: 22px; width: 34px; }
 .score-table .pts { font-family: var(--f-hand); font-size: 24px; text-align: center; }
@@ -402,23 +412,23 @@ h2.section { font-family: var(--f-stencil); font-size: 22px; margin: 0 0 12px; c
   background: radial-gradient(circle at 35% 30%, #e8574a, var(--red) 60%, #6e140f); color: #fff; font-family: var(--f-stencil); font-size: 22px; transform: rotate(8deg); box-shadow: 0 4px 10px rgba(0,0,0,.5); }
 @keyframes fade { from { opacity: 0; } }
 .rules h3 { font-family: var(--f-stencil); margin: 20px 0 8px; font-size: 16px; letter-spacing: .04em; }
-.rules p { font-size: 14px; line-height: 1.45; margin: 0; }
+.rules p { font-size: 15px; line-height: 1.5; margin: 0; }
 .rules .lead { font-size: 16px; font-weight: 700; margin: 4px 0 14px; }
-.rules .note { font-size: 13px; opacity: .85; margin-top: 8px; }
+.rules .note { font-size: 14px; opacity: .9; margin-top: 8px; }
 .rules .safe { margin-top: 18px; }
 .rules .steps { list-style: none; counter-reset: s; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.rules .steps li { counter-increment: s; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; line-height: 1.25; }
+.rules .steps li { counter-increment: s; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; line-height: 1.25; }
 .rules .steps li::before { content: counter(s); flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
   background: var(--ink); color: #f3ead8; font-family: var(--f-stencil); font-size: 13px; }
 .rules .lv-list { list-style: none; counter-reset: l; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
 .rules .lv-list li { counter-increment: l; display: grid; grid-template-columns: 24px 1fr; column-gap: 10px; align-items: center; }
 .rules .lv-list li::before { content: counter(l) "."; grid-row: span 2; font-family: var(--f-stencil); font-size: 16px; }
-.rules .lv-list b { font-size: 14px; line-height: 1.2; }
-.rules .lv-list small { font-size: 12px; opacity: .75; }
+.rules .lv-list b { font-size: 15px; line-height: 1.2; }
+.rules .lv-list small { font-size: 14px; opacity: .8; }
 .rules .emoji-key { display: grid; gap: 6px; }
 .rules .emoji-key div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: 8px; background: rgba(42,29,20,.07); }
 .rules .emoji-key span { font-size: 18px; letter-spacing: 2px; }
-.rules .emoji-key small { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; opacity: .75; }
+.rules .emoji-key small { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; opacity: .85; }
 
 /* ---------- toasts ---------- */
 #toasts { position: fixed; left: 0; right: 0; bottom: 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 60; pointer-events: none; padding: 0 16px; }
