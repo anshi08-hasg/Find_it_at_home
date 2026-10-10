@@ -354,6 +354,21 @@ After a review against the Hybrid Game brief (wellness theme, 50% physical / 50%
 - It checks that every line of text sits inside the box that draws it, that no two pieces of text overlap, that nothing is cut off by a container's edge (deliberate "…" excepted), and that the page never scrolls sideways.
 - Result: 224 checks, no problems, no console errors. The brief, two-player and practice suites still pass.
 
+
+## 15. Presentation deck
+`docs/Find-It-at-Home-Game-Design.pptx`, 38 slides in the game's look.
+- **Style:**
+  - The espresso desk, parchment cards, red stamps and the same colours as the game.
+  - Fonts: Bowlby One for headings (the normal-case version of the game's font, so nothing is in all caps), Inter for body text, and Special Elite for case-file labels.
+- **Content:** follows the design-thinking process.
+  - **Brief**, then **Empathise and define:** audience, 3 proto-personas (Aarav 9, Kamla Nani 67, Meera 38), problem statement and "how might we".
+  - **Ideate:** 4 ideas and a scoring table against the brief.
+  - **Game design:** the core loop, all 7 elements, Caillois, Bartle, flow, balance, the 10 emojis, and the 50/50 split.
+  - **Rule book**, then **Prototype:** real screenshots of the game, look and feel, original media, ethics.
+  - **Refine:** the 5 versions so far.
+- **User testing:** a test plan, then blank slides ready for 2 playtests and a "what we changed" table.
+- **Checked** by rebuilding every slide in Chrome with the same fonts. No text overflows or overlaps, with 8% spare room in every box. Passes the PowerPoint file validator.
+
 ---
 
 ## Known issues and to-dos
